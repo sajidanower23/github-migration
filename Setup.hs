@@ -1,2 +1,3 @@
-import Distribution.Simple
-main = defaultMain
+module Main (main) where
+
+import Configuration.Utils.Setup

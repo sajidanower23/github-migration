@@ -39,22 +39,28 @@ maintainer:          sajidanower23@gmail.com
 
 -- category:            
 
-build-type:          Simple
+build-type:          Custom
+-- See custom-setup below
 
 -- Extra files to be distributed with the package, such as examples or a 
 -- README.
 extra-source-files:  README.md, ChangeLog.md
 
 -- Constraint on the version of Cabal needed to build this package.
-cabal-version:       >=1.10
+cabal-version:       >=1.24
 
+custom-setup
+  setup-depends:
+    base
+    , configuration-tools >= 0.3
+    , Cabal
 
 executable github-migration
   -- .hs or .lhs file containing the Main module.
   main-is:             Main.hs
   
   -- Modules included in this executable, other than Main.
-  -- other-modules:       
+  other-modules:       PkgInfo_github_migration
   
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
@@ -64,6 +70,9 @@ executable github-migration
                      , github >= 0.20
                      , aeson >= 1.4
                      , optparse-applicative
+                     , text
+                     , configuration-tools
+                     , microlens-th
   
   -- Directories containing source files.
   hs-source-dirs:      src
