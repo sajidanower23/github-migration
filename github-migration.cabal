@@ -61,7 +61,9 @@ executable github-migration
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.8 && <5
-                     , github
+                     , github >= 0.20
+                     , aeson >= 1.4
+                     , optparse-applicative
   
   -- Directories containing source files.
   hs-source-dirs:      src

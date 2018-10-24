@@ -39,6 +39,7 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - github-0.20
+- aeson-1.4.1.0
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
