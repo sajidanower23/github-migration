@@ -71,6 +71,7 @@ executable github-migration
                      , aeson >= 1.4
                      , optparse-applicative
                      , text
+                     , bytestring
                      , configuration-tools
                      , microlens-th
   

@@ -1,14 +1,23 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
 module Main where
 
 import GitHub
 
-import Configuration.Utils
 import Data.Aeson
-import Data.Text                (Text)
+import Data.ByteString (ByteString)
+import Data.String     (IsString (..))
+import Data.Text       (Text)
+
+import Control.Monad.Except
+import Control.Monad.Reader
+
+import Configuration.Utils
+import Options.Applicative
 import PkgInfo_github_migration
 
 import Lens.Micro.TH
@@ -17,7 +26,7 @@ import Lens.Micro.TH
 data Config = Config
   { _fromURL    :: Text
   , _toURL      :: Text
-  , _fromAPIKey :: Text
+  , _fromAPIKey :: String
   } deriving Show
 $(makeLenses ''Config)
 
@@ -41,14 +50,18 @@ instance ToJSON Config where
     , "from-api-key" .= fkey
     ]
 
-flg :: HasName f => Char -> String -> String -> Mod f a
-flg c l h = long l <> short c <> help h
+
+sflg :: IsString a => Char -> String -> String -> Parser a
+sflg c l h = strOption % long l <> short c <> help h
+
+flg :: IsString s => Lens' a s -> Char -> String -> String -> MParser a
+flg len c l h = len .:: sflg c l h
 
 pConfig :: MParser Config
 pConfig = id
-  <$< fromURL    .:: strOption % flg 'f' "from-url"     "From URL"
-  <*< toURL      .:: strOption % flg 't' "to-url"       "to URL"
-  <*< fromAPIKey .:: strOption % flg 'k' "from-api-key" "From API Key"
+  <$< flg fromURL    'f' "from-url"     "From URL"
+  <*< flg toURL      't' "to-url"       "To URL"
+  <*< flg fromAPIKey 'k' "from-api-key" "From API Key"
 
 mainInfo :: ProgramInfo Config
 mainInfo = programInfo "Hello World" pConfig defaultConfig
