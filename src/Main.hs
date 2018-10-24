@@ -4,9 +4,12 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
+
 module Main where
 
 import GitHub
+import GitHub.Data
+import GitHub.Data.Name
 
 import Data.Aeson
 import Data.ByteString (ByteString)
@@ -63,10 +66,27 @@ pConfig = id
   <*< flg toURL      't' "to-url"       "To URL"
   <*< flg fromAPIKey 'k' "from-api-key" "From API Key"
 
+type App a = ReaderT Config (ExceptT Error IO) a
+
+runApp :: Config -> App a -> IO (Either Error a)
+runApp conf app = runExceptT $ runReaderT app conf
+
+liftG :: IO (Either Error a) -> App a
+liftG = lift . ExceptT
+
+from :: Request x a -> App a
+from r = do
+  Config{..} <- ask
+  liftG (executeRequest (EnterpriseOAuth _fromURL (fromString _fromAPIKey)) r)
+
 mainInfo :: ProgramInfo Config
 mainInfo = programInfo "Hello World" pConfig defaultConfig
 
 main :: IO ()
 main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \conf -> do
-  putStrLn "hello world"
   print conf
+  either print print =<< runApp conf (do
+    vec <- from $ userEventsR (N "mas17k") FetchAll
+    liftIO $ print vec
+    )
+  print ()
