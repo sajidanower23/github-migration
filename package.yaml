@@ -1,10 +1,10 @@
 name:                github-migration
 version:             0.1.0.0
-github:              "githubuser/github-migration"
-license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2018 Author name here"
+github:              "sajidanower23/github-migration"
+license:             MIT
+author:              "Sajid Ibne Anower"
+maintainer:          "sajidanower23@gmail.com"
+copyright:           "2018 Sajid Ibne Anower"
 
 extra-source-files:
 - README.md
@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/github-migration#readme>
+description:         Please see the README on GitHub at <https://github.com/sajidanower23/github-migration#readme>
 
 dependencies:
 - base >= 4.7 && < 5

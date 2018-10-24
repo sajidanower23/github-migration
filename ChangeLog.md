@@ -1,3 +1,5 @@
-# Changelog for github-migration
+# Revision history for github-migration
 
-## Unreleased changes
+## 0.1.0.0  -- YYYY-mm-dd
+
+* First version. Released on an unsuspecting world.
