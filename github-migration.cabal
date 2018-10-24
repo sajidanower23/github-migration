@@ -73,6 +73,7 @@ executable github-migration
                      , text
                      , bytestring
                      , configuration-tools
+                     , microlens
                      , microlens-th
                      , mtl
   
