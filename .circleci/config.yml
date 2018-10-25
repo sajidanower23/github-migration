@@ -23,6 +23,7 @@ jobs:
           name: install stack
           command: |
             wget -qO- https://get.haskellstack.org/ | sh
+            stack --version
       - run:
           name: install dependencies
           command: |
