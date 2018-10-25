@@ -1,12 +1,12 @@
-version: 2
-jobs:
-  build_project:
-    machine: true
-    steps:
-      - checkout
-      - run: echo “Hello”
-      # - run: wget https://github.com/commercialhaskell/stack/releases/download/v1.6.1/stack-1.6.1-linux-x86_64.tar.gz -O /tmp/stack.tar.gz
-      # - run: sudo mkdir /tmp/stack-download
-      # - run: sudo tar -xzf /tmp/stack.tar.gz -C /tmp/stack-download
-      # - run: sudo chmod +x /tmp/stack-download/stack-1.6.1-linux-x86_64/stack
-      # - run: sudo mv /tmp/stack-download/stack-1.6.1-linux-x86_64/stack /usr/bin/stack
+dependencies:
+  cache_directories:
+    - "~/.stack"
+  pre:
+    - wget -qO- https://get.haskellstack.org/ | sh
+  override:
+    - stack setup
+    - stack build
+
+test:
+  override:
+    - stack test
