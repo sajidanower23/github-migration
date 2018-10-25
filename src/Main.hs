@@ -8,17 +8,14 @@
 module Main where
 
 import GitHub
-import GitHub.Data
-import GitHub.Data.Name
 
-import           Data.Aeson
-import           Data.ByteString (ByteString)
-import           Data.Foldable
-import           Data.Proxy      (Proxy (..))
-import           Data.String     (IsString (..))
-import           Data.Text       (Text, isInfixOf, split, unpack)
-import           Data.Vector     (Vector)
-import qualified Data.Vector     as V
+import Data.Aeson
+import Data.Foldable
+import Data.Proxy    (Proxy (..))
+import Data.String   (IsString (..))
+import Data.Text     (Text, isInfixOf, split, unpack)
+
+import qualified Data.Vector as V
 
 import Control.Monad.Except
 import Control.Monad.Reader
