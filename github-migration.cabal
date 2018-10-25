@@ -73,8 +73,10 @@ executable github-migration
                      , text
                      , bytestring
                      , configuration-tools
+                     , microlens
                      , microlens-th
                      , mtl
+                     , vector
   
   -- Directories containing source files.
   hs-source-dirs:      src
