@@ -120,41 +120,89 @@ liftG :: IO (Either Error a) -> App a
 liftG = lift . ExceptT
 
 -- Run a request on the 'from' server
-from :: Request x a -> App a
-from r = do
+source :: Request x a -> App a
+source r = do
   Config{..} <- ask
   liftIO (print r)
-  liftG (executeRequest (EnterpriseOAuth _fromURL (fromString _fromAPIKey)) r)
+  liftG (executeRequest _sourceAuth r)
+
+sourceRepo :: (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
+sourceRepo f g = do
+  f' <- uncurry f <$> asks _sourceRepo
+  source (g f')
 
 -- Run a request on the 'to' server
-to :: Request x a -> App a
-to r = do
+dest :: Request x a -> App a
+dest r = do
   Config{..} <- ask
   liftIO (print r)
-  liftG (executeRequest (OAuth (fromString _toAPIKey)) r)
+  liftG (executeRequest _destAuth r)
 
-mainInfo :: ProgramInfo Config
-mainInfo = programInfo "Hello World" pConfig defaultConfig
+destRepo :: (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
+destRepo f g = do
+  f' <- uncurry f <$> asks _destRepo
+  dest (g f')
+
+mainInfo :: ProgramInfo Opts
+mainInfo = programInfo "github-migration" pConfig defaultConfig
 
 main :: IO ()
-main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \conf -> do
-  print conf
-  either print print =<< runApp conf (do
-    -- vec <- from $ userEventsR (N "Axman6") FetchAll
-    -- liftIO $ print vec
-    vec <- from $ issuesForRepoR  (N "axman6") (N "test-from") stateAll FetchAll
-    liftIO (print vec)
-    traverse_ moveIssue vec
-    rateLimitCore <$> from rateLimitR
+main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
+  print opts
+  res <- optsToConfig opts & either (error . show) (\conf -> runApp conf $ do
+
+    transferLabels
+    -- vec <- source =<< (sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll)
+    -- liftIO (mapM_ (print . issueNumber) vec)
+    -- traverse_ transferIssue vec
+    rateLimitCore <$> source rateLimitR
     )
+  either print print res
   pure ()
 
+transferIssues :: App ()
+transferIssues = do
+  vec <- sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll
+  traverse_ transferIssue vec
+  where
+    transferIssue :: Issue -> App Issue
+    transferIssue iss = do
+      newIss <- destRepo createIssueR ($ NewIssue
+          { newIssueTitle     = issueTitle iss
+          , newIssueBody      = (<> ("\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
+          , newIssueLabels    = Just (labelName <$> issueLabels iss)
+          , newIssueAssignee  = Nothing
+          , newIssueMilestone = Nothing -- milestoneNumber <$> issueMilestone iss
+          })
+      forM_ (issueAssignees iss) $ \assignee ->
+            -- TODO: EditIssue should contain a Vector (Name User)
+        destRepo editIssueR $ \f -> f (mkId Proxy $ issueNumber newIss) EditIssue
+          { editIssueAssignee  = Just (simpleUserLogin assignee)
+          , editIssueTitle     = Nothing
+          , editIssueBody      = Nothing
+          , editIssueState     = Nothing
+          , editIssueMilestone = Nothing
+          , editIssueLabels    = Nothing
+          }
+      destRepo issueR ($ (mkId Proxy $ issueNumber newIss))
 
-moveIssue :: Issue -> App Issue
-moveIssue iss = to $ createIssueR (N "axman6") (N "test-to") $ NewIssue
-  { newIssueTitle = (issueTitle iss)
-  , newIssueBody = (<> ("\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
-  , newIssueLabels = Just (labelName <$> issueLabels iss)
-  , newIssueAssignee = Nothing
-  , newIssueMilestone = Nothing
-  }
+transferLabels :: App ()
+transferLabels = do
+  sourcelbls <- sourceRepo labelsOnRepoR ($ FetchAll)
+  -- liftIO $ mapM_ print sourcelbls
+  destlbls <- destRepo labelsOnRepoR ($ FetchAll)
+  let (exist, create) = V.partition (\l -> labelName l `V.elem` (labelName <$> destlbls)) sourcelbls
+  traverse_ moveLabel create
+  traverse_ updateLabel exist
+  where
+    moveLabel :: IssueLabel -> App IssueLabel
+    moveLabel lbl = destRepo createLabelR $ \f ->
+        f  (labelName lbl) (unpack $ labelColor lbl)
+
+    updateLabel :: IssueLabel -> App IssueLabel
+    updateLabel lbl = destRepo updateLabelR  $ \f ->
+        f (labelName lbl) (labelName lbl) (unpack $ labelColor lbl)
+
+-- TODO: the github package currently doesn't have create milestone
+transferMilestones :: App ()
+transferMilestones = pure ()
