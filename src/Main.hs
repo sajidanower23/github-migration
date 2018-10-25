@@ -152,6 +152,8 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   res <- optsToConfig opts & either (error . show) (\conf -> runApp conf $ do
 
     transferLabels
+    transferMilestones
+    transferIssues
     -- vec <- source =<< (sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll)
     -- liftIO (mapM_ (print . issueNumber) vec)
     -- traverse_ transferIssue vec
@@ -203,6 +205,20 @@ transferLabels = do
     updateLabel lbl = destRepo updateLabelR  $ \f ->
         f (labelName lbl) (labelName lbl) (unpack $ labelColor lbl)
 
--- TODO: the github package currently doesn't have create milestone
 transferMilestones :: App ()
-transferMilestones = pure ()
+transferMilestones = do
+  sourceMilestones <- sourceRepo milestonesR ($ FetchAll)
+  liftIO $ mapM_ print sourceMilestones
+  traverse_ transferMilestone sourceMilestones
+  where
+    milestoneToNewMilestone :: Milestone -> NewMilestone
+    milestoneToNewMilestone mlstn =
+      NewMilestone
+        { newMilestoneTitle = milestoneTitle mlstn
+        , newMilestoneState = milestoneState mlstn
+        , newMilestoneDescription = milestoneDescription mlstn
+        , newMilestoneDueOn = milestoneDueOn mlstn
+        }
+
+    transferMilestone :: Milestone -> App Milestone
+    transferMilestone mlstn = destRepo createMilestoneR ($ milestoneToNewMilestone mlstn)
