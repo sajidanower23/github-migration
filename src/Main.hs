@@ -152,8 +152,8 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   res <- optsToConfig opts & either (error . show) (\conf -> runApp conf $ do
 
     transferLabels
-    transferIssues
     transferMilestones
+    transferIssues
     -- vec <- source =<< (sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll)
     -- liftIO (mapM_ (print . issueNumber) vec)
     -- traverse_ transferIssue vec
