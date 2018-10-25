@@ -8,17 +8,14 @@
 module Main where
 
 import GitHub
-import GitHub.Data
-import GitHub.Data.Name
 
-import           Data.Aeson
-import           Data.ByteString (ByteString)
-import           Data.Foldable
-import           Data.Proxy      (Proxy (..))
-import           Data.String     (IsString (..))
-import           Data.Text       (Text, isInfixOf, split, unpack)
-import           Data.Vector     (Vector)
-import qualified Data.Vector     as V
+import Data.Aeson
+import Data.Foldable
+import Data.Proxy    (Proxy (..))
+import Data.String   (IsString (..))
+import Data.Text     (Text, isInfixOf, split, unpack)
+
+import qualified Data.Vector as V
 
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -27,7 +24,7 @@ import Configuration.Utils
 import Options.Applicative
 import PkgInfo_github_migration
 
-import Lens.Micro    hiding (Lens', from, to)
+import Lens.Micro    hiding (Lens')
 import Lens.Micro.TH
 
 
@@ -152,6 +149,7 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   res <- optsToConfig opts & either (error . show) (\conf -> runApp conf $ do
 
     transferLabels
+    transferIssues
     -- vec <- source =<< (sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll)
     -- liftIO (mapM_ (print . issueNumber) vec)
     -- traverse_ transferIssue vec
@@ -166,25 +164,18 @@ transferIssues = do
   traverse_ transferIssue vec
   where
     transferIssue :: Issue -> App Issue
-    transferIssue iss = do
-      newIss <- destRepo createIssueR ($ NewIssue
+    transferIssue iss =
+      destRepo createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
           , newIssueLabels    = Just (labelName <$> issueLabels iss)
-          , newIssueAssignee  = Nothing
-          , newIssueMilestone = Nothing -- milestoneNumber <$> issueMilestone iss
+          , newIssueAssignees = if V.null (issueAssignees iss)
+                                  then Nothing
+                                  else Just (simpleUserLogin <$> issueAssignees iss)
+          , newIssueMilestone = Nothing -- TODO: milestoneNumber <$> issueMilestone iss
           })
-      forM_ (issueAssignees iss) $ \assignee ->
-            -- TODO: EditIssue should contain a Vector (Name User)
-        destRepo editIssueR $ \f -> f (mkId Proxy $ issueNumber newIss) EditIssue
-          { editIssueAssignee  = Just (simpleUserLogin assignee)
-          , editIssueTitle     = Nothing
-          , editIssueBody      = Nothing
-          , editIssueState     = Nothing
-          , editIssueMilestone = Nothing
-          , editIssueLabels    = Nothing
-          }
-      destRepo issueR ($ (mkId Proxy $ issueNumber newIss))
+
+      -- destRepo issueR ($ (mkId Proxy $ issueNumber newIss))
 
 transferLabels :: App ()
 transferLabels = do
