@@ -1,12 +1,25 @@
-dependencies:
-  cache_directories:
-    - "~/.stack"
-  pre:
-    - wget -qO- https://get.haskellstack.org/ | sh
-  override:
-    - stack setup
-    - stack build
-
-test:
-  override:
-    - stack test
+version: 2
+jobs:
+  build:
+    branches:
+    docker:
+      - image: sajidanower23/github-migration
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Cached Dependencies
+          keys:
+            # Always cache everything
+            - deps-
+      - save_cache:
+          name: Cache Dependencies
+          key: deps-
+          paths:
+            - ~/.stack
+      - run:
+          name: Build & Test App
+          working_directory: '~/github-migration'
+          command: |
+            stack setup
+            stack build
+            stack test
