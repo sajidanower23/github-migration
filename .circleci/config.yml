@@ -1,0 +1,36 @@
+# Haskell CircleCI 2.0 configuration file
+#
+version: 2
+jobs:
+  build:
+    machine: true
+    working_directory: ~/github-migration
+
+    steps:
+      - checkout
+
+      # Download and cache dependencies
+      # - restore_cache:
+      #     keys:
+      #     - v1-dependencies-{{ checksum "requirements.txt" }}
+      #     # fallback to using the latest cache if no exact match is found
+      #     - v1-dependencies-
+      - restore_cache:
+          name: restore cached dependencies
+          keys:
+            - deps-
+      - run:
+          name: install stack
+          command: |
+            wget -qO- https://get.haskellstack.org/ | sh
+            stack --version
+      - run:
+          name: install dependencies
+          command: |
+            stack setup
+            stack build
+      - save_cache:
+          name: cache dependencies
+          key: deps-
+          paths:
+            - ~/.stack
