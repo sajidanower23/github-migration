@@ -7,28 +7,28 @@
 
 module Main where
 
-import GitHub
-import GitHub.Data
-import GitHub.Data.Name
+import           GitHub
+import           GitHub.Data
+import           GitHub.Data.Name
 
 import           Data.Aeson
-import           Data.ByteString (ByteString)
+import           Data.ByteString          (ByteString)
 import           Data.Foldable
-import           Data.Proxy      (Proxy (..))
-import           Data.String     (IsString (..))
-import           Data.Text       (Text, isInfixOf, split, unpack)
-import           Data.Vector     (Vector)
-import qualified Data.Vector     as V
+import           Data.Proxy               (Proxy (..))
+import           Data.String              (IsString (..))
+import           Data.Text                (Text, isInfixOf, split, unpack)
+import           Data.Vector              (Vector)
+import qualified Data.Vector              as V
 
-import Control.Monad.Except
-import Control.Monad.Reader
+import           Control.Monad.Except
+import           Control.Monad.Reader
 
-import Configuration.Utils
-import Options.Applicative
-import PkgInfo_github_migration
+import           Configuration.Utils
+import           Options.Applicative
+import           PkgInfo_github_migration
 
-import Lens.Micro    hiding (Lens', from, to)
-import Lens.Micro.TH
+import           Lens.Micro               hiding (Lens', from, to)
+import           Lens.Micro.TH
 
 
 data Opts = Opts
@@ -152,6 +152,8 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   res <- optsToConfig opts & either (error . show) (\conf -> runApp conf $ do
 
     transferLabels
+    transferIssues
+    transferMilestones
     -- vec <- source =<< (sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll)
     -- liftIO (mapM_ (print . issueNumber) vec)
     -- traverse_ transferIssue vec
@@ -203,6 +205,20 @@ transferLabels = do
     updateLabel lbl = destRepo updateLabelR  $ \f ->
         f (labelName lbl) (labelName lbl) (unpack $ labelColor lbl)
 
--- TODO: the github package currently doesn't have create milestone
 transferMilestones :: App ()
-transferMilestones = pure ()
+transferMilestones = do
+  sourceMilestones <- sourceRepo milestonesR ($ FetchAll)
+  liftIO $ mapM_ print sourceMilestones
+  traverse_ transferMilestone sourceMilestones
+  where
+    milestoneToNewMilestone :: Milestone -> NewMilestone
+    milestoneToNewMilestone mlstn =
+      NewMilestone
+        { newMilestoneTitle = milestoneTitle mlstn
+        , newMilestoneState = milestoneState mlstn
+        , newMilestoneDescription = milestoneDescription mlstn
+        , newMilestoneDueOn = milestoneDueOn mlstn
+        }
+
+    transferMilestone :: Milestone -> App Milestone
+    transferMilestone mlstn = destRepo createMilestoneR ($ milestoneToNewMilestone mlstn)
