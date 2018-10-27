@@ -170,13 +170,13 @@ transferIssues = do
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
           , newIssueLabels    = Just (labelName <$> issueLabels iss)
-          , newIssueAssignee  = Nothing
+          , newIssueAssignees = mempty
           , newIssueMilestone = Nothing -- milestoneNumber <$> issueMilestone iss
           })
       forM_ (issueAssignees iss) $ \assignee ->
             -- TODO: EditIssue should contain a Vector (Name User)
         destRepo editIssueR $ \f -> f (mkId Proxy $ issueNumber newIss) EditIssue
-          { editIssueAssignee  = Just (simpleUserLogin assignee)
+          { editIssueAssignees = Just (V.singleton $ simpleUserLogin assignee)
           , editIssueTitle     = Nothing
           , editIssueBody      = Nothing
           , editIssueState     = Nothing
