@@ -7,25 +7,25 @@
 
 module Main where
 
-import GitHub
+import           GitHub
 
-import Data.Aeson
-import Data.Foldable
-import Data.Proxy    (Proxy (..))
-import Data.String   (IsString (..))
-import Data.Text     (Text, isInfixOf, split, unpack)
+import           Data.Aeson
+import           Data.Foldable
+import           Data.Proxy               (Proxy (..))
+import           Data.String              (IsString (..))
+import           Data.Text                (Text, isInfixOf, split, unpack)
 
-import qualified Data.Vector as V
+import qualified Data.Vector              as V
 
-import Control.Monad.Except
-import Control.Monad.Reader
+import           Control.Monad.Except
+import           Control.Monad.Reader
 
-import Configuration.Utils
-import Options.Applicative
-import PkgInfo_github_migration
+import           Configuration.Utils
+import           Options.Applicative
+import           PkgInfo_github_migration
 
-import Lens.Micro    hiding (Lens')
-import Lens.Micro.TH
+import           Lens.Micro               hiding (Lens')
+import           Lens.Micro.TH
 
 
 data Opts = Opts
@@ -171,8 +171,8 @@ transferIssues = do
           , newIssueBody      = (<> ("\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
           , newIssueLabels    = Just (labelName <$> issueLabels iss)
           , newIssueAssignees = if V.null (issueAssignees iss)
-                                  then Nothing
-                                  else Just (simpleUserLogin <$> issueAssignees iss)
+                                  then mempty
+                                  else simpleUserLogin <$> issueAssignees iss
           , newIssueMilestone = Nothing -- TODO: milestoneNumber <$> issueMilestone iss
           })
 
