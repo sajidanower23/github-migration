@@ -150,9 +150,10 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   print opts
   res <- optsToConfig opts & either (error . show) (\conf -> runApp conf $ do
 
-    transferLabels
-    transferMilestones
+    -- transferLabels
     transferIssues
+    getPulls
+    -- transferMilestones
     -- vec <- source =<< (sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll)
     -- liftIO (mapM_ (print . issueNumber) vec)
     -- traverse_ transferIssue vec
@@ -168,8 +169,8 @@ getPulls = do
 
 transferIssues :: App ()
 transferIssues = do
-  vec <- sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll
-  traverse_ transferIssue vec
+  issues <- sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll
+  traverse_ (liftIO . print . issuePullRequest) issues
   where
     transferIssue :: Issue -> App ()
     transferIssue iss = do
