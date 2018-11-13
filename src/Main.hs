@@ -9,6 +9,7 @@ module Main where
 
 import           GitHub
 import           GitHub.Data.Id
+import           GitHub.Data.Options
 
 import           Data.Aeson
 import           Data.Foldable
@@ -159,6 +160,11 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
     )
   either print print res
   pure ()
+
+getPulls :: App ()
+getPulls = do
+  pulls <- sourceRepo pullRequestsForR $ \f -> f stateAll FetchAll
+  traverse_ (liftIO . print) pulls
 
 transferIssues :: App ()
 transferIssues = do
