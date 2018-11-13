@@ -28,9 +28,10 @@ jobs:
           name: install dependencies
           command: |
             stack setup
-            stack build
+            stack build --fast
       - save_cache:
           name: cache dependencies
           key: deps-
           paths:
             - ~/.stack
+            - ~/.stack-work
