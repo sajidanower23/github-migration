@@ -8,6 +8,7 @@
 module Main where
 
 import           GitHub
+import           GitHub.Data.Id
 
 import           Data.Aeson
 import           Data.Foldable
@@ -164,8 +165,8 @@ transferIssues = do
   vec <- sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll
   traverse_ transferIssue vec
   where
-    transferIssue :: Issue -> App Issue
-    transferIssue iss =
+    transferIssue :: Issue -> App ()
+    transferIssue iss = do
       destRepo createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
@@ -175,8 +176,18 @@ transferIssues = do
                                   else simpleUserLogin <$> issueAssignees iss
           , newIssueMilestone = Nothing -- TODO: milestoneNumber <$> issueMilestone iss
           })
+      transferIssueComments iss
 
-      -- destRepo issueR ($ (mkId Proxy $ issueNumber newIss))
+transferIssueComments :: Issue -> App ()
+transferIssueComments iss = do
+  let iid = Id $ issueNumber iss
+  -- liftIO $ print $ "Listing the issue comments of iss id : " ++ iid
+  cmnts <- sourceRepo commentsR $ \f -> f iid FetchAll
+  traverse_ (transferSingleComment iid) cmnts
+  where
+    transferSingleComment :: Id Issue -> IssueComment -> App Comment
+    transferSingleComment iid cmnt =
+      destRepo createCommentR $ \f -> f iid (issueCommentBody cmnt)
 
 transferLabels :: App ()
 transferLabels = do
