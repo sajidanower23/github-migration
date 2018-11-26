@@ -7,26 +7,27 @@
 
 module Main where
 
-import           GitHub
-import           GitHub.Data.Id
+import GitHub
+import GitHub.Data.Id
+import GitHub.Data.Name (Name (..))
 
-import           Data.Aeson
-import           Data.Foldable
-import           Data.Proxy               (Proxy (..))
-import           Data.String              (IsString (..))
-import           Data.Text                (Text, isInfixOf, split, unpack)
+import Data.Aeson
+import Data.Foldable
+import Data.Proxy    (Proxy (..))
+import Data.String   (IsString (..))
+import Data.Text     (Text, isInfixOf, split, unpack)
 
-import qualified Data.Vector              as V
+import qualified Data.Vector as V
 
-import           Control.Monad.Except
-import           Control.Monad.Reader
+import Control.Monad.Except
+import Control.Monad.Reader
 
-import           Configuration.Utils
-import           Options.Applicative
-import           PkgInfo_github_migration
+import Configuration.Utils
+import Options.Applicative
+import PkgInfo_github_migration
 
-import           Lens.Micro               hiding (Lens')
-import           Lens.Micro.TH
+import Lens.Micro    hiding (Lens')
+import Lens.Micro.TH
 
 
 data Opts = Opts
