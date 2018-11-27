@@ -96,16 +96,16 @@ optsToConfig :: Opts -> Either Text Config
 optsToConfig Opts{..} = Config
   <$> makeAuth _fromHost _fromAPIKey
   <*> makeAuth _toHost _toAPIKey
-  <*> makeRepo _fromRepoStr
-  <*> makeRepo _toRepoStr
+  <*> makeRepoName _fromRepoStr
+  <*> makeRepoName _toRepoStr
 
 makeAuth :: Text -> String -> Either Text Auth
 makeAuth host key
   | "api.github.com" `isInfixOf` host = pure (OAuth (fromString key))
   | otherwise = pure (EnterpriseOAuth host (fromString key))
 
-makeRepo :: Text -> Either Text (Name Owner, Name Repo)
-makeRepo repostr = case split (=='/') repostr of
+makeRepoName :: Text -> Either Text (Name Owner, Name Repo)
+makeRepoName repostr = case split (=='/') repostr of
   [owner,repo] -> pure (mkName Proxy owner, mkName Proxy repo)
   _ -> Left $ "Repo string not of the form \'<owner>/<repo>\': " <> repostr
 
