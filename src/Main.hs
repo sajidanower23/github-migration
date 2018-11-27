@@ -6,6 +6,8 @@
 
 module Main where
 
+import UserMapUtils (UserInfo, UserMap)
+
 import GitHub
 import GitHub.Data.Id
 import GitHub.Data.Name (Name (..))
