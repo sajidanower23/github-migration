@@ -1,14 +1,9 @@
-[
-    {
-        "github": {
-            "username" : "exampleuser",
-            "useremail": "radoctocat@example.com",
-            "access_token": ""
-        },
-        "enterprise": {
-            "username" : "myenterpriseusername",
-            "useremail": "user.name@company.com",
-            "access_token": ""
-        }
+{
+    "user_name_source": {
+        "access_token_source": "",
+        "user_email_source": "source@email.com",
+        "user_name_dest": "myUserNameAtDestRepo",
+        "access_token_dest": "",
+        "user_email_dest": "dest@email.com"
     }
-]
+}
