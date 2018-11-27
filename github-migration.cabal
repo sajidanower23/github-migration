@@ -62,7 +62,8 @@ executable github-migration
   
   -- Modules included in this executable, other than Main.
   other-modules:       PkgInfo_github_migration
-  
+                     , UserMapUtils
+
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
   
@@ -78,6 +79,7 @@ executable github-migration
                      , microlens-th
                      , mtl
                      , vector
+                     , unordered-containers
   
   -- Directories containing source files.
   hs-source-dirs:      src
