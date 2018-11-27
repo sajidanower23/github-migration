@@ -12,11 +12,11 @@ import Data.Aeson
 import Data.Text as T
 
 data UserInfo = UserInfo
-  { sourceAccessToken :: String
-  , sourceUserEmail   :: Text
+  { sourceAccessToken :: !String
+  , sourceUserEmail   :: !Text
   , destUserName      :: !Text
-  , destAccessToken   :: String
-  , destUserEmail     :: Text
+  , destAccessToken   :: !String
+  , destUserEmail     :: !Text
   }
   deriving (Show, Eq, Generic)
 
