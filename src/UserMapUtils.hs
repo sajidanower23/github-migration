@@ -44,12 +44,24 @@ instance ToJSON UserInfo where
 
 type UserName = Text
 
-readUserMapFile :: FilePath -> IO ()
+type UserMap = HashMap UserName UserInfo
+
+type CSVStructure = (Text, Text, Text, Text, String)
+
+readUserMapFile :: FilePath -> IO UserMap
 readUserMapFile mapFile = do
   userInfoData <- BL.readFile mapFile
   case CSV.decode CSV.NoHeader userInfoData of
     Left err -> putStrLn err
-    Right v -> V.forM_ v $ \(sourceName, destName, sourceEmail, destEmail, token) ->
-      error "not implemented yet"
+    Right v  -> pure $ userVectorToMap v
 
-type UserMap = HashMap UserName UserInfo
+userVectorToMap :: V.Vector CSVStructure -> UserMap
+userVectorToMap = vecToHashTable H.empty
+  where
+    vecToHashTable ht v
+      | V.null v  = ht
+      | otherwise = let
+        (sourceName, destName, sourceEmail, destEmail, token) = V.head v
+        userInfo = UserInfo sourceEmail destName token destEmail
+          in
+            vecToHashTable (H.insert sourceName userInfo ht) (V.tail v)
