@@ -4,14 +4,18 @@
 
 module UserMapUtils where
 
-import           GHC.Generics      (Generic)
+import           GHC.Generics         (Generic)
 
-import           Data.HashMap.Lazy as H
+import           Data.HashMap.Lazy    as H
 
 import           Data.Aeson
 
-import           Data.Hashable     (Hashable (..))
-import           Data.Text         as T
+import qualified Data.ByteString.Lazy as BL
+import           Data.Hashable        (Hashable (..))
+import           Data.Text            as T
+import qualified Data.Vector          as V
+
+import qualified Data.Csv             as CSV
 
 data UserInfo = UserInfo
   { sourceAccessToken :: !String
@@ -43,5 +47,13 @@ newtype UserName = UserName { getUserName :: Text }
   deriving (Eq)
 deriving instance Show UserName
 deriving instance Hashable UserName
+
+readUserMapFile :: FilePath -> IO ()
+readUserMapFile mapFile = do
+  userInfoData <- BL.readFile mapFile
+  case CSV.decode CSV.NoHeader userInfoData of
+    Left err -> putStrLn err
+    Right v -> V.forM_ v $ \(sourceName, destName, sourceEmail, destEmail, token) ->
+      error "not implemented yet"
 
 type UserMap = HashMap UserName UserInfo

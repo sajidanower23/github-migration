@@ -73,6 +73,7 @@ executable github-migration
                      , aeson >= 1.4
                      , optparse-applicative
                      , text
+                     , cassava
                      , bytestring
                      , hashable
                      , configuration-tools
