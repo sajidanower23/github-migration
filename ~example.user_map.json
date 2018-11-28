@@ -1,9 +1,0 @@
-{
-    "user_name_source": {
-        "access_token_source": "",
-        "user_email_source": "source@email.com",
-        "user_name_dest": "myUserNameAtDestRepo",
-        "access_token_dest": "",
-        "user_email_dest": "dest@email.com"
-    }
-}
