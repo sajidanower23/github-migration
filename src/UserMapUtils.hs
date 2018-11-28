@@ -1,13 +1,14 @@
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 
 module UserMapUtils where
 
-import GHC.Generics (Generic)
+import           GHC.Generics      (Generic)
 
-import Data.HashMap.Lazy as H
+import           Data.HashMap.Lazy as H
 
-import Data.Aeson
+import           Data.Aeson
 
 import           Data.Hashable     (Hashable (..))
 import           Data.Text         as T
@@ -22,14 +23,12 @@ data UserInfo = UserInfo
   deriving (Show, Eq, Generic)
 
 instance FromJSON UserInfo where
-  parseJSON (Object v) =
-    UserInfo
-      <$> v .: "access_token_source"
-      <*> v .: "user_email_source"
-      <*> v .: "user_name_dest"
-      <*> v .: "access_token_dest"
-      <*> v .: "user_email_dest"
-  parseJSON _ = mempty
+  parseJSON = withObject "UserInfo" $ \u -> UserInfo
+      <$> u .: "access_token_source"
+      <*> u .: "user_email_source"
+      <*> u .: "user_name_dest"
+      <*> u .: "access_token_dest"
+      <*> u .: "user_email_dest"
 
 instance ToJSON UserInfo where
   toJSON (UserInfo sourceToken sourceEmail destName destToken destEmail) = object
