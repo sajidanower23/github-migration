@@ -1,18 +1,20 @@
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module UserMapUtils where
 
 import           GHC.Generics         (Generic)
 
-import           Data.HashMap.Lazy    as H
+import           Data.Hashable        (Hashable (..))
+import           Data.HashMap.Lazy    (HashMap)
+import qualified Data.HashMap.Lazy    as H
 
 import           Data.Aeson
 
 import qualified Data.ByteString.Lazy as BL
-import           Data.Hashable        (Hashable (..))
-import           Data.Text            as T
+import           Data.Text            (Text)
+import qualified Data.Text            as T
+
 import qualified Data.Vector          as V
 
 import qualified Data.Csv             as CSV
@@ -40,10 +42,7 @@ instance ToJSON UserInfo where
     , "user_email_dest"     .= destEmail
     ]
 
-newtype UserName = UserName { getUserName :: Text }
-  deriving (Eq)
-deriving instance Show UserName
-deriving instance Hashable UserName
+type UserName = Text
 
 readUserMapFile :: FilePath -> IO ()
 readUserMapFile mapFile = do
