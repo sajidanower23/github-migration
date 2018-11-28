@@ -74,6 +74,7 @@ executable github-migration
                      , optparse-applicative
                      , text
                      , bytestring
+                     , hashable
                      , configuration-tools
                      , microlens
                      , microlens-th

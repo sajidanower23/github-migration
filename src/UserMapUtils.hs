@@ -9,7 +9,8 @@ import Data.HashMap.Lazy as H
 
 import Data.Aeson
 
-import Data.Text as T
+import           Data.Hashable     (Hashable (..))
+import           Data.Text         as T
 
 data UserInfo = UserInfo
   { sourceAccessToken :: !String
@@ -39,8 +40,9 @@ instance ToJSON UserInfo where
     , "user_email_dest"     .= destEmail
     ]
 
-newtype UserName = UserName Text
+newtype UserName = UserName { getUserName :: Text }
   deriving (Eq)
 deriving instance Show UserName
+deriving instance Hashable UserName
 
 type UserMap = HashMap UserName UserInfo
