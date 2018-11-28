@@ -18,26 +18,23 @@ import qualified Data.Vector          as V
 import qualified Data.Csv             as CSV
 
 data UserInfo = UserInfo
-  { sourceAccessToken :: !String
-  , sourceUserEmail   :: !Text
-  , destUserName      :: !Text
-  , destAccessToken   :: !String
-  , destUserEmail     :: !Text
+  { sourceUserEmail :: !Text
+  , destUserName    :: !Text
+  , destAccessToken :: !String
+  , destUserEmail   :: !Text
   }
   deriving (Show, Eq, Generic)
 
 instance FromJSON UserInfo where
   parseJSON = withObject "UserInfo" $ \u -> UserInfo
-      <$> u .: "access_token_source"
-      <*> u .: "user_email_source"
+      <$> u .: "user_email_source"
       <*> u .: "user_name_dest"
       <*> u .: "access_token_dest"
       <*> u .: "user_email_dest"
 
 instance ToJSON UserInfo where
-  toJSON (UserInfo sourceToken sourceEmail destName destToken destEmail) = object
-    [ "access_token_source" .= sourceToken
-    , "user_email_source"   .= sourceEmail
+  toJSON (UserInfo sourceEmail destName destToken destEmail) = object
+    [ "user_email_source"   .= sourceEmail
     , "user_name_dest"      .= destName
     , "access_token_dest"   .= destToken
     , "user_email_dest"     .= destEmail
