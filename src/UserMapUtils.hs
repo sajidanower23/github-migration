@@ -9,8 +9,6 @@ import           Data.Hashable        (Hashable (..))
 import           Data.HashMap.Lazy    (HashMap)
 import qualified Data.HashMap.Lazy    as H
 
-import           Data.Aeson
-
 import qualified Data.ByteString.Lazy as BL
 import           Data.Text            (Text)
 import qualified Data.Text            as T
@@ -26,21 +24,6 @@ data UserInfo = UserInfo
   , destUserEmail   :: !Text
   }
   deriving (Show, Eq, Generic)
-
-instance FromJSON UserInfo where
-  parseJSON = withObject "UserInfo" $ \u -> UserInfo
-      <$> u .: "user_email_source"
-      <*> u .: "user_name_dest"
-      <*> u .: "access_token_dest"
-      <*> u .: "user_email_dest"
-
-instance ToJSON UserInfo where
-  toJSON (UserInfo sourceEmail destName destToken destEmail) = object
-    [ "user_email_source"   .= sourceEmail
-    , "user_name_dest"      .= destName
-    , "access_token_dest"   .= destToken
-    , "user_email_dest"     .= destEmail
-    ]
 
 type UserName = Text
 

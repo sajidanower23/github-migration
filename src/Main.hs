@@ -1,35 +1,47 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
-
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
 module Main where
 
-import UserMapUtils (UserInfo, UserMap)
+import           GHC.Generics             (Generic)
 
-import GitHub
-import GitHub.Data.Id
-import GitHub.Data.Name (Name (..))
+import           GitHub
+import           GitHub.Data.Id
+import           GitHub.Data.Name         (Name (..))
 
-import Data.Aeson
-import Data.Foldable
-import Data.Proxy    (Proxy (..))
-import Data.String   (IsString (..))
-import Data.Text     (Text, isInfixOf, split, unpack)
+import           Data.Aeson
+import           Data.Foldable
+import           Data.Proxy               (Proxy (..))
+import           Data.String              (IsString (..))
+import           Data.Text                (Text, isInfixOf, split, unpack)
+import qualified Data.Text                as T
 
-import qualified Data.Vector as V
+import           Control.Monad.Except
+import           Control.Monad.Reader
 
-import Control.Monad.Except
-import Control.Monad.Reader
+import           Configuration.Utils
+import           Options.Applicative
+import           PkgInfo_github_migration
 
-import Configuration.Utils
-import Options.Applicative
-import PkgInfo_github_migration
+import           Lens.Micro               hiding (Lens')
+import           Lens.Micro.TH
 
-import Lens.Micro    hiding (Lens')
-import Lens.Micro.TH
+import           Data.Hashable            (Hashable (..))
+import           Data.HashMap.Lazy        (HashMap)
+import qualified Data.HashMap.Lazy        as H
 
+import qualified Data.ByteString.Lazy     as BL
+
+import qualified Data.Vector              as V
+
+import qualified Data.Csv                 as CSV
+
+
+-- ============ Command Line Args/Config =================
 
 data Opts = Opts
   { _fromHost    :: Text
@@ -85,6 +97,43 @@ pConfig = id
   <*< flg toAPIKey    'l' "to-api-key"   "To API Key"
   <*< flg toRepoStr   's' "to-repo"      "Dest Repo"
 
+-- ============ User Types =================
+
+data UserInfo = UserInfo
+  { sourceUserEmail :: !Text
+  , destUserName    :: !Text
+  , destAccessToken :: !String
+  , destUserEmail   :: !Text
+  }
+  deriving (Show, Eq, Generic)
+
+type UserName = Text
+
+type UserMap = HashMap UserName UserInfo
+
+-- ============ CSV Reader Utils =================
+
+type CSVStructure = (Text, Text, Text, Text, String)
+
+readUserMapFile :: FilePath -> IO UserMap
+readUserMapFile mapFile = do
+  userInfoData <- BL.readFile mapFile
+  case CSV.decode CSV.NoHeader userInfoData of
+    Left err -> error $ "Could not read CSV: " <> err
+    Right v  -> pure $ userVectorToMap v
+
+userVectorToMap :: V.Vector CSVStructure -> UserMap
+userVectorToMap = vecToHashTable H.empty
+  where
+    vecToHashTable ht v
+      | V.null v  = ht
+      | otherwise = let
+        (sourceName, destName, sourceEmail, destEmail, token) = V.head v
+        userInfo = UserInfo sourceEmail destName token destEmail
+          in
+            vecToHashTable (H.insert sourceName userInfo ht) (V.tail v)
+
+-- ============ App Config/State =================
 
 data Config = Config
   {_sourceAuth :: Auth
@@ -180,6 +229,8 @@ transferIssues = do
           , newIssueMilestone = Nothing -- TODO: milestoneNumber <$> issueMilestone iss
           })
       transferIssueComments iss
+
+-- ============ Transfer Utils =================
 
 transferIssueComments :: Issue -> App ()
 transferIssueComments iss = do
