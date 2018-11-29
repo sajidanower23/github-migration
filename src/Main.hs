@@ -123,10 +123,10 @@ readUserMapFile mapFile = do
     Left err -> error $ "Could not read CSV: " <> err
     Right v  -> pure v
 
-userVectorToMap :: Text -> V.Vector CSVStructure -> UserMap
-userVectorToMap host = vecToHashTable host H.empty
+userVToAuthMap :: Text -> V.Vector CSVStructure -> UserAuthMap
+userVToAuthMap host = vecToAuthTable host H.empty
   where
-    vecToHashTable host ht v
+    vecToAuthTable host ht v
       | V.null v  = ht
       | otherwise =
           let (sourceName, _, _, _, token) = V.head v
