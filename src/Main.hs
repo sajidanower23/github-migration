@@ -239,7 +239,6 @@ transferIssues = do
 transferIssueComments :: Issue -> App ()
 transferIssueComments iss = do
   let iid = Id $ issueNumber iss
-  -- liftIO $ print $ "Listing the issue comments of iss id : " ++ iid
   cmnts <- sourceRepo commentsR $ \f -> f iid FetchAll
   traverse_ (transferSingleComment iid) cmnts
   where
@@ -249,12 +248,11 @@ transferIssueComments iss = do
           oldCmntBody = issueCommentBody cmnt
           newCommentBody = oldCmntBody <> "\n\n_Original Author: " <> authorName <> "_\n"
         in
-          destRepo createCommentR $ \f -> f iid newCommentBody
+          destRepoWithAuth authorName createCommentR $ \f -> f iid newCommentBody
 
 transferLabels :: App ()
 transferLabels = do
   sourcelbls <- sourceRepo labelsOnRepoR ($ FetchAll)
-  -- liftIO $ mapM_ print sourcelbls
   destlbls <- destRepo labelsOnRepoR ($ FetchAll)
   let (exist, create) = V.partition (\l -> labelName l `V.elem` (labelName <$> destlbls)) sourcelbls
   traverse_ moveLabel create
