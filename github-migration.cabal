@@ -62,7 +62,7 @@ executable github-migration
   
   -- Modules included in this executable, other than Main.
   other-modules:       PkgInfo_github_migration
-  
+
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
   
@@ -72,12 +72,15 @@ executable github-migration
                      , aeson >= 1.4
                      , optparse-applicative
                      , text
+                     , cassava
                      , bytestring
+                     , hashable
                      , configuration-tools
                      , microlens
                      , microlens-th
                      , mtl
                      , vector
+                     , unordered-containers
   
   -- Directories containing source files.
   hs-source-dirs:      src
