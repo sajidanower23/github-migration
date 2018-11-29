@@ -106,7 +106,11 @@ pConfig = id
 
 type UserName = Text
 
-type UserMap = HashMap UserName Auth
+type UserAuthMap = HashMap UserName Auth
+
+-- | A map between source and destination usernames
+type UserNameMap = HashMap UserName UserName
+--                         Source   Dest
 
 -- ============ CSV Reader Utils =================
 
@@ -130,23 +134,34 @@ userVectorToMap host = vecToHashTable host H.empty
           in
           case eAuth of
             Left err -> error $ "Error while parsing user data: " <> show err
-            Right auth -> vecToHashTable host (H.insert sourceName auth ht) (V.tail v)
+            Right auth -> vecToAuthTable host (H.insert sourceName auth ht) (V.tail v)
+
+userVToNameMap :: V.Vector CSVStructure -> UserNameMap
+userVToNameMap = makeNameTable H.empty
+  where
+    makeNameTable ht v
+      | V.null v  = ht
+      | otherwise =
+        let (sourceName, destName, _, _, _) = V.head v in
+          makeNameTable (H.insert sourceName destName ht) (V.tail v)
 
 -- ============ App Config/State =================
 
 data Config = Config
   {_sourceAuth  :: Auth
   ,_destAuth    :: Auth
-  ,_userInfoMap :: UserMap
+  ,_userAuthMap :: UserAuthMap
+  ,_userInfoMap :: UserNameMap
   ,_sourceRepo  :: (Name Owner, Name Repo)
   ,_destRepo    :: (Name Owner, Name Repo)
   }
 
-optsToConfig :: UserMap -> Opts -> Either Text Config
-optsToConfig userHt Opts{..} = Config
+optsToConfig :: UserNameMap -> UserAuthMap -> Opts -> Either Text Config
+optsToConfig userNameHt authHt Opts{..} = Config
   <$> makeAuth _fromHost _fromAPIKey
   <*> makeAuth _toHost _toAPIKey
-  <*> Right userHt
+  <*> Right authHt
+  <*> Right userNameHt
   <*> makeRepoName _fromRepoStr
   <*> makeRepoName _toRepoStr
 
@@ -216,8 +231,9 @@ main :: IO ()
 main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   print opts
   userV <- readUserMapFile (_userMapFile opts)
-  let userHt = userVectorToMap (_toHost opts) userV
-  res <- (optsToConfig userHt) opts & either (error . show) (\conf -> runApp conf $ do
+  let authHt = userVToAuthMap (_toHost opts) userV
+      userNameHt = userVToNameMap userV
+  res <- (optsToConfig userNameHt authHt) opts & either (error . show) (\conf -> runApp conf $ do
     transferLabels
     transferMilestones
     transferIssues
