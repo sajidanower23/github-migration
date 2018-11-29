@@ -50,6 +50,7 @@ data Opts = Opts
   , _toHost      :: Text
   , _toAPIKey    :: String
   , _toRepoStr   :: Text
+  , _userMapFile :: FilePath
   } deriving Show
 $(makeLenses ''Opts)
 
@@ -61,24 +62,27 @@ defaultConfig = Opts
   ,_toHost= "https://api.github.com"
   ,_toAPIKey=""
   ,_toRepoStr=""
+  ,_userMapFile=""
   }
 
 
 instance FromJSON (Opts -> Opts) where
   parseJSON = withObject "Opts" $ \o -> id
-    <$< fromHost   ..: "from-host"     % o
-    <*< toHost     ..: "to-host"       % o
-    <*< fromAPIKey ..: "from-api-key" % o
-    <*< toAPIKey   ..: "to-api-key"   % o
+    <$< fromHost    ..: "from-host"     % o
+    <*< toHost      ..: "to-host"       % o
+    <*< fromAPIKey  ..: "from-api-key"  % o
+    <*< toAPIKey    ..: "to-api-key"    % o
+    <*< userMapFile ..: "user-map-file" % o
 
 instance ToJSON Opts where
-  toJSON (Opts fhost fkey frepo thost tkey trepo) = object
-    [ "from-host"    .= fhost
-    , "from-api-key" .= fkey
-    , "from-repo"    .= frepo
-    , "to-host"      .= thost
-    , "to-api-key"   .= tkey
-    , "to-repo"      .= trepo
+  toJSON (Opts fhost fkey frepo thost tkey trepo mapFile) = object
+    [ "from-host"     .= fhost
+    , "from-api-key"  .= fkey
+    , "from-repo"     .= frepo
+    , "to-host"       .= thost
+    , "to-api-key"    .= tkey
+    , "to-repo"       .= trepo
+    , "user-map-file" .= mapFile
     ]
 
 
