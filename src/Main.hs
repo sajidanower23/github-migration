@@ -94,62 +94,59 @@ flg len c l h = len .:: sflg c l h
 
 pConfig :: MParser Opts
 pConfig = id
-  <$< flg fromHost    'f' "from-host"    "From Host"
-  <*< flg fromAPIKey  'k' "from-api-key" "From API Key"
-  <*< flg fromRepoStr 'r' "from-repo"    "Source Repo"
-  <*< flg toHost      't' "to-host"      "To Host"
-  <*< flg toAPIKey    'l' "to-api-key"   "To API Key"
-  <*< flg toRepoStr   's' "to-repo"      "Dest Repo"
+  <$< flg fromHost    'f' "from-host"     "From Host"
+  <*< flg fromAPIKey  'k' "from-api-key"  "From API Key"
+  <*< flg fromRepoStr 'r' "from-repo"     "Source Repo"
+  <*< flg toHost      't' "to-host"       "To Host"
+  <*< flg toAPIKey    'l' "to-api-key"    "To API Key"
+  <*< flg toRepoStr   's' "to-repo"       "Dest Repo"
+  <*< flg userMapFile 'c' "user-map-file" "CSV File containing user maps"
 
 -- ============ User Types =================
 
-data UserInfo = UserInfo
-  { sourceUserEmail :: !Text
-  , destUserName    :: !Text
-  , destAccessToken :: !String
-  , destUserEmail   :: !Text
-  }
-  deriving (Show, Eq, Generic)
-
 type UserName = Text
 
-type UserMap = HashMap UserName UserInfo
+type UserMap = HashMap UserName Auth
 
 -- ============ CSV Reader Utils =================
 
 type CSVStructure = (Text, Text, Text, Text, String)
 
-readUserMapFile :: FilePath -> IO UserMap
+readUserMapFile :: FilePath -> IO (V.Vector CSVStructure)
 readUserMapFile mapFile = do
   userInfoData <- BL.readFile mapFile
   case CSV.decode CSV.NoHeader userInfoData of
     Left err -> error $ "Could not read CSV: " <> err
-    Right v  -> pure $ userVectorToMap v
+    Right v  -> pure v
 
-userVectorToMap :: V.Vector CSVStructure -> UserMap
-userVectorToMap = vecToHashTable H.empty
+userVectorToMap :: Text -> V.Vector CSVStructure -> UserMap
+userVectorToMap host = vecToHashTable host H.empty
   where
-    vecToHashTable ht v
+    vecToHashTable host ht v
       | V.null v  = ht
-      | otherwise = let
-        (sourceName, destName, sourceEmail, destEmail, token) = V.head v
-        userInfo = UserInfo sourceEmail destName token destEmail
+      | otherwise =
+          let (sourceName, _, _, _, token) = V.head v
+              eAuth = makeAuth host token
           in
-            vecToHashTable (H.insert sourceName userInfo ht) (V.tail v)
+          case eAuth of
+            Left err -> error $ "Error while parsing user data: " <> show err
+            Right auth -> vecToHashTable host (H.insert sourceName auth ht) (V.tail v)
 
 -- ============ App Config/State =================
 
 data Config = Config
-  {_sourceAuth :: Auth
-  ,_destAuth   :: Auth
-  ,_sourceRepo :: (Name Owner, Name Repo)
-  ,_destRepo   :: (Name Owner, Name Repo)
+  {_sourceAuth  :: Auth
+  ,_destAuth    :: Auth
+  ,_userInfoMap :: UserMap
+  ,_sourceRepo  :: (Name Owner, Name Repo)
+  ,_destRepo    :: (Name Owner, Name Repo)
   }
 
-optsToConfig :: Opts -> Either Text Config
-optsToConfig Opts{..} = Config
+optsToConfig :: UserMap -> Opts -> Either Text Config
+optsToConfig userHt Opts{..} = Config
   <$> makeAuth _fromHost _fromAPIKey
   <*> makeAuth _toHost _toAPIKey
+  <*> Right userHt
   <*> makeRepoName _fromRepoStr
   <*> makeRepoName _toRepoStr
 
@@ -184,6 +181,22 @@ sourceRepo f g = do
   f' <- uncurry f <$> asks _sourceRepo
   source (g f')
 
+destWithAuth :: UserName -> Request x a -> App a
+destWithAuth username r = do
+  Config fromAuth toAuth usermap fromRepo toRepo <- ask
+  let mUserInfo = H.lookup username usermap
+  case mUserInfo of
+    Nothing -> dest r
+    Just auth -> do
+      liftIO (print r)
+      liftG (executeRequest auth r)
+
+destRepoWithAuth :: UserName -> (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
+destRepoWithAuth username f g = do
+  f' <- uncurry f <$> asks _destRepo
+  destWithAuth username (g f')
+
+
 -- Run a request on the 'to' server
 dest :: Request x a -> App a
 dest r = do
@@ -202,8 +215,9 @@ mainInfo = programInfo "github-migration" pConfig defaultConfig
 main :: IO ()
 main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   print opts
-  res <- optsToConfig opts & either (error . show) (\conf -> runApp conf $ do
-
+  userV <- readUserMapFile (_userMapFile opts)
+  let userHt = userVectorToMap (_toHost opts) userV
+  res <- (optsToConfig userHt) opts & either (error . show) (\conf -> runApp conf $ do
     transferLabels
     transferMilestones
     transferIssues
@@ -225,7 +239,7 @@ transferIssues = do
     transferIssue :: Issue -> App ()
     transferIssue iss = do
       let (N authorName) = simpleUserLogin . issueUser $ iss
-      destRepo createIssueR ($ NewIssue
+      destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
           , newIssueLabels    = Just (labelName <$> issueLabels iss)
@@ -282,4 +296,6 @@ transferMilestones = do
         }
 
     transferMilestone :: Milestone -> App Milestone
-    transferMilestone mlstn = destRepo createMilestoneR ($ milestoneToNewMilestone mlstn)
+    transferMilestone mlstn =
+      let (N authorName) = simpleUserLogin . milestoneCreator $ mlstn in
+      destRepoWithAuth authorName createMilestoneR ($ milestoneToNewMilestone mlstn)
