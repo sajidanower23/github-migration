@@ -198,12 +198,12 @@ sourceRepo f g = do
 
 destWithAuth :: UserName -> Request x a -> App a
 destWithAuth username r = do
-  Config fromAuth toAuth usermap fromRepo toRepo <- ask
-  let mUserInfo = H.lookup username usermap
+  Config fromAuth toAuth authMap nameMap fromRepo toRepo <- ask
+  liftIO (print r)
+  let mUserInfo = H.lookup username authMap
   case mUserInfo of
-    Nothing -> dest r
+    Nothing -> dest r -- defaulting to dest without auth
     Just auth -> do
-      liftIO (print r)
       liftG (executeRequest auth r)
 
 destRepoWithAuth :: UserName -> (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
