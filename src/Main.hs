@@ -247,6 +247,23 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
 
 -- ============ Transfer Utils =================
 
+-- | Lookup what each user in source is called in dest
+getDestAssignees :: V.Vector UserName -> App (V.Vector UserName)
+getDestAssignees sourceAssignees = do
+  userNameHt <- asks _userInfoMap
+  findDestAssignee userNameHt V.empty sourceAssignees
+  where
+    findDestAssignee nameHt acc v
+      | V.null v = pure acc
+      | otherwise =
+          case H.lookup (V.head v) nameHt of
+            Nothing -> findDestAssignee nameHt acc (V.tail v)
+            Just dName -> findDestAssignee nameHt (V.snoc acc dName) (V.tail v)
+
+-- | Accessor for the newtype ``Name`` defined in GitHub.Data.Name
+getName :: Name entity -> Text
+getName (N t) = t
+
 transferIssues :: App ()
 transferIssues = do
   vec <- sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll
@@ -254,15 +271,17 @@ transferIssues = do
   where
     transferIssue :: Issue -> App ()
     transferIssue iss = do
-      let (N authorName) = simpleUserLogin . issueUser $ iss
+      let authorName = getName . simpleUserLogin . issueUser $ iss
+          sourceAssigneeNames = getName . simpleUserLogin <$> issueAssignees iss
+      destAssignees <- getDestAssignees sourceAssigneeNames
       destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
           , newIssueLabels    = Just (labelName <$> issueLabels iss)
           , newIssueAssignees = if V.null (issueAssignees iss)
                                   then mempty
-                                  else simpleUserLogin <$> issueAssignees iss
-          , newIssueMilestone = Nothing -- TODO: milestoneNumber <$> issueMilestone iss
+                                  else N <$> destAssignees
+          , newIssueMilestone = milestoneNumber <$> issueMilestone iss
           })
       transferIssueComments iss
 
