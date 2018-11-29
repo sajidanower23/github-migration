@@ -211,6 +211,8 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   either print print res
   pure ()
 
+-- ============ Transfer Utils =================
+
 transferIssues :: App ()
 transferIssues = do
   vec <- sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll
@@ -229,8 +231,6 @@ transferIssues = do
           , newIssueMilestone = Nothing -- TODO: milestoneNumber <$> issueMilestone iss
           })
       transferIssueComments iss
-
--- ============ Transfer Utils =================
 
 transferIssueComments :: Issue -> App ()
 transferIssueComments iss = do
