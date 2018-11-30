@@ -11,7 +11,8 @@ import GHC.Generics (Generic)
 
 import GitHub
 import GitHub.Data.Id
-import GitHub.Data.Name (Name (..))
+import GitHub.Data.Name        (Name (..))
+import GitHub.Endpoints.Issues (editOfIssue)
 
 import           Data.Aeson
 import           Data.Foldable
@@ -39,7 +40,6 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as V
 
 import qualified Data.Csv as CSV
-
 
 -- ============ Command Line Args/Config =================
 
