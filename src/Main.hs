@@ -284,6 +284,19 @@ transferIssues = do
           , newIssueMilestone = milestoneNumber <$> issueMilestone iss
           })
       transferIssueComments iss
+      maybeCloseIssue iss
+
+-- | If the issue is closed in src, it closes it in dest
+maybeCloseIssue :: Issue -> App ()
+maybeCloseIssue iss =
+  case issueClosedAt iss of
+    Nothing -> pure ()
+    Just _  ->
+      let authorName = getName . simpleUserLogin . issueUser $ iss
+          iid = Id $ issueNumber iss
+          in do
+            _ <- destRepoWithAuth authorName editIssueR $ \f -> f iid editOfIssue{ editIssueState = Just StateClosed }
+            pure ()
 
 transferIssueComments :: Issue -> App ()
 transferIssueComments iss = do
