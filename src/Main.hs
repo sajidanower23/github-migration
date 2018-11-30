@@ -7,38 +7,38 @@
 
 module Main where
 
-import GHC.Generics (Generic)
+import           GHC.Generics             (Generic)
 
-import GitHub
-import GitHub.Data.Id
-import GitHub.Data.Name (Name (..))
+import           GitHub
+import           GitHub.Data.Id
+import           GitHub.Data.Name         (Name (..))
 
 import           Data.Aeson
 import           Data.Foldable
-import           Data.Proxy    (Proxy (..))
-import           Data.String   (IsString (..))
-import           Data.Text     (Text, isInfixOf, split, unpack)
-import qualified Data.Text     as T
+import           Data.Proxy               (Proxy (..))
+import           Data.String              (IsString (..))
+import           Data.Text                (Text, isInfixOf, split, unpack)
+import qualified Data.Text                as T
 
-import Control.Monad.Except
-import Control.Monad.Reader
+import           Control.Monad.Except
+import           Control.Monad.Reader
 
-import Configuration.Utils
-import Options.Applicative
-import PkgInfo_github_migration
+import           Configuration.Utils
+import           Options.Applicative
+import           PkgInfo_github_migration
 
-import Lens.Micro    hiding (Lens')
-import Lens.Micro.TH
+import           Lens.Micro               hiding (Lens')
+import           Lens.Micro.TH
 
-import           Data.Hashable     (Hashable (..))
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as H
+import           Data.Hashable            (Hashable (..))
+import           Data.HashMap.Lazy        (HashMap)
+import qualified Data.HashMap.Lazy        as H
 
-import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy     as BL
 
-import qualified Data.Vector as V
+import qualified Data.Vector              as V
 
-import qualified Data.Csv as CSV
+import qualified Data.Csv                 as CSV
 
 
 -- ============ Command Line Args/Config =================
@@ -272,15 +272,13 @@ transferIssues = do
     transferIssue :: Issue -> App ()
     transferIssue iss = do
       let authorName = getName . simpleUserLogin . issueUser $ iss
-          sourceAssigneeNames = getName . simpleUserLogin <$> issueAssignees iss
-      destAssignees <- getDestAssignees sourceAssigneeNames
       destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
           , newIssueLabels    = Just (labelName <$> issueLabels iss)
           , newIssueAssignees = if V.null (issueAssignees iss)
                                   then mempty
-                                  else N <$> destAssignees
+                                  else simpleUserLogin <$> issueAssignees iss
           , newIssueMilestone = milestoneNumber <$> issueMilestone iss
           })
       transferIssueComments iss
