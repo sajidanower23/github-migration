@@ -283,7 +283,7 @@ transferIssues = do
 
 -- | If the issue is closed in src, it closes it in dest
 maybeCloseIssue :: Issue -> App ()
-maybeCloseIssue iss =
+maybeCloseIssue iss = do
   case issueClosedAt iss of
     Nothing -> pure ()
     Just _  ->
