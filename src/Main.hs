@@ -245,7 +245,7 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
 -- ============ Transfer Utils =================
 
 -- | Lookup what each user in source is called in dest
-getDestAssignees :: V.Vector UserName -> App (V.Vector UserName)
+getDestAssignees :: V.Vector (Name User) -> App (V.Vector (Name User))
 getDestAssignees sourceAssignees = do
   userNameHt <- asks _userInfoMap
   findDestAssignee userNameHt V.empty sourceAssignees
@@ -253,13 +253,11 @@ getDestAssignees sourceAssignees = do
     findDestAssignee nameHt acc v
       | V.null v = pure acc
       | otherwise =
-          case H.lookup (V.head v) nameHt of
-            Nothing -> findDestAssignee nameHt acc (V.tail v)
-            Just dName -> findDestAssignee nameHt (V.snoc acc dName) (V.tail v)
-
--- | Accessor for the newtype ``Name`` defined in GitHub.Data.Name
-getName :: Name entity -> Text
-getName (N t) = t
+          let (N srcName) = V.head v
+          in
+            case H.lookup srcName nameHt of
+              Nothing -> findDestAssignee nameHt acc (V.tail v) -- dropping this assignee
+              Just dName -> findDestAssignee nameHt (V.snoc acc ((N dName) :: Name User)) (V.tail v)
 
 transferIssues :: App ()
 transferIssues = do
@@ -268,7 +266,7 @@ transferIssues = do
   where
     transferIssue :: Issue -> App ()
     transferIssue iss = do
-      let authorName = getName . simpleUserLogin . issueUser $ iss
+      let (N authorName) = simpleUserLogin . issueUser $ iss
       destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
@@ -287,7 +285,7 @@ maybeCloseIssue iss = do
   case issueClosedAt iss of
     Nothing -> pure ()
     Just _  ->
-      let authorName = getName . simpleUserLogin . issueUser $ iss
+      let (N authorName) = simpleUserLogin . issueUser $ iss
           iid = Id $ issueNumber iss
           in do
             _ <- destRepoWithAuth authorName editIssueR $ \f -> f iid editOfIssue{ editIssueState = Just StateClosed }
