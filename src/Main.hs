@@ -260,10 +260,6 @@ getDestAssignees sourceAssignees = do
             Nothing -> findDestAssignee nameHt acc (V.tail v)
             Just dName -> findDestAssignee nameHt (V.snoc acc dName) (V.tail v)
 
--- | Accessor for the newtype ``Name`` defined in GitHub.Data.Name
-getName :: Name entity -> Text
-getName (N t) = t
-
 transferIssues :: App ()
 transferIssues = do
   vec <- sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll
@@ -271,7 +267,7 @@ transferIssues = do
   where
     transferIssue :: Issue -> App ()
     transferIssue iss = do
-      let authorName = getName . simpleUserLogin . issueUser $ iss
+      let (N authorName) = simpleUserLogin . issueUser $ iss
       destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
