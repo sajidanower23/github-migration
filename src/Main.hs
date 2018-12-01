@@ -248,7 +248,7 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
 -- ============ Transfer Utils =================
 
 -- | Lookup what each user in source is called in dest
-getDestAssignees :: V.Vector UserName -> App (V.Vector UserName)
+getDestAssignees :: V.Vector (Name User) -> App (V.Vector (Name User))
 getDestAssignees sourceAssignees = do
   userNameHt <- asks _userInfoMap
   findDestAssignee userNameHt V.empty sourceAssignees
@@ -256,9 +256,11 @@ getDestAssignees sourceAssignees = do
     findDestAssignee nameHt acc v
       | V.null v = pure acc
       | otherwise =
-          case H.lookup (V.head v) nameHt of
-            Nothing -> findDestAssignee nameHt acc (V.tail v)
-            Just dName -> findDestAssignee nameHt (V.snoc acc dName) (V.tail v)
+          let (N srcName) = V.head v
+          in
+            case H.lookup srcName nameHt of
+              Nothing -> findDestAssignee nameHt acc (V.tail v) -- dropping this assignee
+              Just dName -> findDestAssignee nameHt (V.snoc acc ((N dName) :: Name User)) (V.tail v)
 
 transferIssues :: App ()
 transferIssues = do
