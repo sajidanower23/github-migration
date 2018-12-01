@@ -237,9 +237,6 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
     transferLabels
     transferMilestones
     transferIssues
-    -- vec <- source =<< (sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll)
-    -- liftIO (mapM_ (print . issueNumber) vec)
-    -- traverse_ transferIssue vec
     rateLimitCore <$> source rateLimitR
     )
   either print print res
@@ -331,7 +328,6 @@ transferLabels = do
 transferMilestones :: App ()
 transferMilestones = do
   sourceMilestones <- sourceRepo milestonesR ($ FetchAll)
-  liftIO $ mapM_ print sourceMilestones
   traverse_ transferMilestone sourceMilestones
   where
     milestoneToNewMilestone :: Milestone -> NewMilestone
