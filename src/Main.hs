@@ -269,15 +269,13 @@ transferIssues = do
     transferIssue :: Issue -> App ()
     transferIssue iss = do
       let authorName = getName . simpleUserLogin . issueUser $ iss
-          sourceAssigneeNames = getName . simpleUserLogin <$> issueAssignees iss
-      destAssignees <- getDestAssignees sourceAssigneeNames
       destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
           , newIssueLabels    = Just (labelName <$> issueLabels iss)
           , newIssueAssignees = if V.null (issueAssignees iss)
                                   then mempty
-                                  else N <$> destAssignees
+                                  else simpleUserLogin <$> issueAssignees iss
           , newIssueMilestone = milestoneNumber <$> issueMilestone iss
           })
       transferIssueComments iss
