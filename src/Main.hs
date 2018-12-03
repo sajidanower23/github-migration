@@ -124,9 +124,9 @@ readUserMapFile mapFile = do
     Right v  -> pure v
 
 userVToAuthMap :: Text -> V.Vector CSVStructure -> UserAuthMap
-userVToAuthMap host = vecToAuthTable host H.empty
+userVToAuthMap host = vecToAuthTable H.empty
   where
-    vecToAuthTable host ht v
+    vecToAuthTable ht v
       | V.null v  = ht
       | otherwise =
           let (sourceName, _, _, _, token) = V.head v
@@ -134,7 +134,7 @@ userVToAuthMap host = vecToAuthTable host H.empty
           in
           case eAuth of
             Left err -> error $ "Error while parsing user data: " <> show err
-            Right auth -> vecToAuthTable host (H.insert sourceName auth ht) (V.tail v)
+            Right auth -> vecToAuthTable (H.insert sourceName auth ht) (V.tail v)
 
 userVToNameMap :: V.Vector CSVStructure -> UserNameMap
 userVToNameMap = makeNameTable H.empty
