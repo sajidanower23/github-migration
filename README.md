@@ -7,18 +7,47 @@ to another.
 
 The easiest way to run this is to install `stack`, compile it and run it.
 
+### Download the script
+
 ```console
 git clone https://github.com:sajidanower23/github-migration
 cd github-migration
-sudo apt install haskell-stack # to install stack
+```
+
+### Install stack
+
+`stack` is also available for install via `apt` but it may be a very old version.
+
+```console
+sudo apt install haskell-stack
+```
+
+To install the latest version of `stack`, run:
+
+```console
+wget -qO- https://get.haskellstack.org/ | sh
+```
+
+The latest version of `stack` the program has been tested on is:
+
+```console
+$ stack --version
+Version 1.9.1, Git revision f9d0042c141660e1d38f797e1d426be4a99b2a3c (6168 commits) x86_64 hpack-0.31.0
+```
+
+### Run the program
+
+### Via compiled executable
+
+```console
 stack build
 stack exec github-migration -- <args>
 ```
 
-
 ## Usage
 
 ```console
+$ stack exec github-migration -- -h
 Usage: github-migration [--info] [--long-info] [-v|--version] [--license]
                         [-?|-h|--help] [--print-config]
                         ([--config-https-insecure] |
@@ -72,6 +101,27 @@ before.
 
 ```
 
+### Command line options
+
+-f,--from-host: From Host. Use `api.github.com` if it's github.com.
+Defaults to Enterprise Github.
+
+-t,--to-host: To Host.  Similar to `-f`. Use `api.github.com` if it's github.com.
+Defaults to Enterprise Github.
+
+-k,--from-api-key: An API key generated from the `from-host`.
+-r,--from-repo: Source Repo, in the form `<owner>/<reponame>`. For example, `Microsoft/vscode`.
+
+-l,--to-api-key: Similar to `k`, but in the `to-host`. The `from-api-key` and `to-api-key`
+must belong to the same person.
+
+-s,--to-repo: Similar to the source repo name, in the form `<owner>/<reponame>`.
+
+-c,--user-map-file: Path to a CSV file containing information about all users
+relevant to the repository (ies).
+
+### User mapping
+
 If you would like user mapping between source and destination repository
 (relevant for a migration from Github Enterprise to github.com or vice-versa),
 then you want to pass in a CSV file with the `-c` option which includes user
@@ -84,8 +134,7 @@ will be attributed to the user running the migration. However, issues
 and issue comments will have an attribution at the bottom saying who was the
 original author.
 
-## Known Issues
+## Known Issues / Future features
 
 - Transfers Pull Requests as an Issue instead of a Pull Request, which means that the Pull Request diff is lost.
-- If transferring between different domains (i.e, between Github Enterprise and github.com or vice-versa), issue assignees are lost.
 - Releases are not transferred.
