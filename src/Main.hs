@@ -7,39 +7,39 @@
 
 module Main where
 
-import           GHC.Generics             (Generic)
+import GHC.Generics (Generic)
 
-import           GitHub
-import           GitHub.Data.Id
-import           GitHub.Data.Name         (Name (..))
+import GitHub
+import GitHub.Data.Id
+import GitHub.Data.Name        (Name (..))
+import GitHub.Endpoints.Issues (editOfIssue)
 
 import           Data.Aeson
 import           Data.Foldable
-import           Data.Proxy               (Proxy (..))
-import           Data.String              (IsString (..))
-import           Data.Text                (Text, isInfixOf, split, unpack)
-import qualified Data.Text                as T
+import           Data.Proxy    (Proxy (..))
+import           Data.String   (IsString (..))
+import           Data.Text     (Text, isInfixOf, split, unpack)
+import qualified Data.Text     as T
 
-import           Control.Monad.Except
-import           Control.Monad.Reader
+import Control.Monad.Except
+import Control.Monad.Reader
 
-import           Configuration.Utils
-import           Options.Applicative
-import           PkgInfo_github_migration
+import Configuration.Utils
+import Options.Applicative
+import PkgInfo_github_migration
 
-import           Lens.Micro               hiding (Lens')
-import           Lens.Micro.TH
+import Lens.Micro    hiding (Lens')
+import Lens.Micro.TH
 
-import           Data.Hashable            (Hashable (..))
-import           Data.HashMap.Lazy        (HashMap)
-import qualified Data.HashMap.Lazy        as H
+import           Data.Hashable     (Hashable (..))
+import           Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as H
 
-import qualified Data.ByteString.Lazy     as BL
+import qualified Data.ByteString.Lazy as BL
 
-import qualified Data.Vector              as V
+import qualified Data.Vector as V
 
-import qualified Data.Csv                 as CSV
-
+import qualified Data.Csv as CSV
 
 -- ============ Command Line Args/Config =================
 
@@ -237,9 +237,6 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
     transferLabels
     transferMilestones
     transferIssues
-    -- vec <- source =<< (sourceRepo issuesForRepoR $ \f -> f (stateAll<>sortAscending) FetchAll)
-    -- liftIO (mapM_ (print . issueNumber) vec)
-    -- traverse_ transferIssue vec
     rateLimitCore <$> source rateLimitR
     )
   either print print res
@@ -270,16 +267,31 @@ transferIssues = do
     transferIssue :: Issue -> App ()
     transferIssue iss = do
       let (N authorName) = simpleUserLogin . issueUser $ iss
-      destRepoWithAuth authorName createIssueR ($ NewIssue
+          srcAssignees = simpleUserLogin <$> issueAssignees iss
+      destAssignees <- getDestAssignees srcAssignees
+      _ <- destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
           , newIssueLabels    = Just (labelName <$> issueLabels iss)
           , newIssueAssignees = if V.null (issueAssignees iss)
                                   then mempty
-                                  else simpleUserLogin <$> issueAssignees iss
+                                  else destAssignees
           , newIssueMilestone = milestoneNumber <$> issueMilestone iss
           })
       transferIssueComments iss
+      maybeCloseIssue iss
+
+-- | If the issue is closed in src, it closes it in dest
+maybeCloseIssue :: Issue -> App ()
+maybeCloseIssue iss = do
+  case issueClosedAt iss of
+    Nothing -> pure ()
+    Just _  ->
+      let (N authorName) = simpleUserLogin . issueUser $ iss
+          iid = Id $ issueNumber iss
+          in do
+            _ <- destRepoWithAuth authorName editIssueR $ \f -> f iid editOfIssue{ editIssueState = Just StateClosed }
+            pure ()
 
 transferIssueComments :: Issue -> App ()
 transferIssueComments iss = do
@@ -314,7 +326,6 @@ transferLabels = do
 transferMilestones :: App ()
 transferMilestones = do
   sourceMilestones <- sourceRepo milestonesR ($ FetchAll)
-  liftIO $ mapM_ print sourceMilestones
   traverse_ transferMilestone sourceMilestones
   where
     milestoneToNewMilestone :: Milestone -> NewMilestone
