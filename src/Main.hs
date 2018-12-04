@@ -128,8 +128,7 @@ readUserMapFile mapFile = do
 userVToAuthMap :: Text -> V.Vector CSVStructure -> UserAuthMap
 userVToAuthMap host =
     H.fromList
-  . map (\(sourceName,_,_,_,token) ->
-      (sourceName, handleAuthError (makeAuth host token)))
+  . map (\(sourceName,_,_,_,token) -> (sourceName, handleAuthError (makeAuth host token)))
   . V.toList
   where
     handleAuthError :: Either Text Auth -> Auth
