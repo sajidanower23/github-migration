@@ -121,7 +121,7 @@ type CSVStructure = (Text, Text, Text, Text, String)
 readUserMapFile :: FilePath -> IO (V.Vector CSVStructure)
 readUserMapFile mapFile = do
   userInfoData <- BL.readFile mapFile
-  case CSV.decode CSV.NoHeader userInfoData of
+  case CSV.decode CSV.HasHeader userInfoData of
     Left err -> error $ "Could not read CSV: " <> err
     Right v  -> pure v
 
