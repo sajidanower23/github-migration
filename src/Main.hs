@@ -279,15 +279,11 @@ transferIssues = do
 
 -- | If the issue is closed in src, it closes it in dest
 maybeCloseIssue :: Issue -> App ()
-maybeCloseIssue iss = do
-  case issueClosedAt iss of
-    Nothing -> pure ()
-    Just _  ->
-      let (N authorName) = simpleUserLogin . issueUser $ iss
-          iid = Id $ issueNumber iss
-          in do
-            _ <- destRepoWithAuth authorName editIssueR $ \f -> f iid editOfIssue{ editIssueState = Just StateClosed }
-            pure ()
+maybeCloseIssue iss =
+  for_ (issueClosedAt iss) $ \_ -> do
+    let (N authorName) = simpleUserLogin . issueUser $ iss
+        iid = Id $ issueNumber iss
+    destRepoWithAuth authorName editIssueR $ \f -> f iid editOfIssue{ editIssueState = Just StateClosed }
 
 transferIssueComments :: Issue -> App ()
 transferIssueComments iss = do
