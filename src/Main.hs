@@ -21,7 +21,7 @@ import           Data.String   (IsString (..))
 import           Data.Text     (Text, isInfixOf, split, unpack)
 import qualified Data.Text     as T
 
-import Data.Either (partitionEithers)
+import Data.Either (fromRight, partitionEithers)
 
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -133,11 +133,14 @@ userVToAuthMap host =
   . V.toList
   where
     handleAuthError :: Either Text Auth -> Auth
-    handleAuthError (Left err) = error $ "Error while constructing auth data: " <> show err
-    handleAuthError (Right auth) = auth
+    handleAuthError =
+        either
+          (\err -> error $ "Error while constructing auth data: " <> show err)
+          id
 
 userVToNameMap :: V.Vector CSVStructure -> UserNameMap
-userVToNameMap = H.fromList . map (\(sourceName, destName,_,_,_) -> (sourceName, destName)) . V.toList
+userVToNameMap =
+  H.fromList . map (\(sourceName, destName,_,_,_) -> (sourceName, destName)) . V.toList
 
 -- ============ App Config/State =================
 
@@ -191,15 +194,16 @@ sourceRepo f g = do
   source (g f')
 
 destWithAuth :: UserName -> Request x a -> App a
-destWithAuth username r = do
+destWithAuth sourceName r = do
   Config fromAuth toAuth authMap nameMap fromRepo toRepo <- ask
   liftIO (print r)
-  let mUserInfo = H.lookup username authMap
+  let mUserInfo = H.lookup sourceName authMap
   case mUserInfo of
     Nothing -> do
-      liftIO . print $ "Could not find auth map for username: " <> username <> ", using default auth"
+      liftIO (print $ "Could not find auth map for username: " <> sourceName <> ", using default auth")
       dest r -- defaulting to dest without auth
     Just auth -> do
+      liftIO (print $ "Request being executed as " <> sourceName)
       liftG (executeRequest auth r)
 
 destRepoWithAuth :: UserName -> (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
@@ -229,7 +233,7 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   userV <- readUserMapFile (_userMapFile opts)
   let authHt = userVToAuthMap (_toHost opts) userV
       userNameHt = userVToNameMap userV
-  res <- (optsToConfig userNameHt authHt) opts & either (error . show) (\conf -> runApp conf $ do
+  res <- optsToConfig userNameHt authHt opts & either (error . show) (\conf -> runApp conf $ do
     transferLabels
     transferMilestones
     transferIssues
@@ -244,12 +248,12 @@ getName :: (Name a) -> Text
 getName (N t) = t
 
 -- | Lookup what each user in source is called in dest
-getDestAssignees :: V.Vector (Name User) -> App (V.Vector (Name User))
-getDestAssignees sourceAssignees = do
+getDestUsers :: V.Vector (Name User) -> App (V.Vector (Name User))
+getDestUsers sourceAssignees = do
   userNameHt <- asks _userInfoMap
-  pure $ N <$> findDestAssignee userNameHt (getName <$> sourceAssignees)
+  pure $ N <$> findDestUser userNameHt (getName <$> sourceAssignees)
   where
-    findDestAssignee nameHt = V.mapMaybe (`H.lookup` nameHt)
+    findDestUser nameHt = V.mapMaybe (`H.lookup` nameHt)
 
 transferIssues :: App ()
 transferIssues = do
@@ -260,7 +264,7 @@ transferIssues = do
     transferIssue iss = do
       let (N authorName) = simpleUserLogin . issueUser $ iss
           srcAssignees = simpleUserLogin <$> issueAssignees iss
-      destAssignees <- getDestAssignees srcAssignees
+      destAssignees <- getDestUsers srcAssignees
       _ <- destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
