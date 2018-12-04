@@ -196,7 +196,9 @@ destWithAuth username r = do
   liftIO (print r)
   let mUserInfo = H.lookup username authMap
   case mUserInfo of
-    Nothing -> dest r -- defaulting to dest without auth
+    Nothing -> do
+      liftIO . print $ "Could not find auth map for username: " <> username <> ", using default auth"
+      dest r -- defaulting to dest without auth
     Just auth -> do
       liftG (executeRequest auth r)
 
