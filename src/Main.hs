@@ -21,6 +21,8 @@ import           Data.String   (IsString (..))
 import           Data.Text     (Text, isInfixOf, split, unpack)
 import qualified Data.Text     as T
 
+import Data.Either (partitionEithers)
+
 import Control.Monad.Except
 import Control.Monad.Reader
 
@@ -124,26 +126,18 @@ readUserMapFile mapFile = do
     Right v  -> pure v
 
 userVToAuthMap :: Text -> V.Vector CSVStructure -> UserAuthMap
-userVToAuthMap host = vecToAuthTable H.empty
+userVToAuthMap host =
+    H.fromList
+  . map (\(sourceName,_,_,_,token) ->
+      (sourceName, handleAuthError (makeAuth host token)))
+  . V.toList
   where
-    vecToAuthTable ht v
-      | V.null v  = ht
-      | otherwise =
-          let (sourceName, _, _, _, token) = V.head v
-              eAuth = makeAuth host token
-          in
-          case eAuth of
-            Left err -> error $ "Error while parsing user data: " <> show err
-            Right auth -> vecToAuthTable (H.insert sourceName auth ht) (V.tail v)
+    handleAuthError :: Either Text Auth -> Auth
+    handleAuthError (Left err) = error $ "Error while constructing auth data: " <> show err
+    handleAuthError (Right auth) = auth
 
 userVToNameMap :: V.Vector CSVStructure -> UserNameMap
-userVToNameMap = makeNameTable H.empty
-  where
-    makeNameTable ht v
-      | V.null v  = ht
-      | otherwise =
-        let (sourceName, destName, _, _, _) = V.head v in
-          makeNameTable (H.insert sourceName destName ht) (V.tail v)
+userVToNameMap = H.fromList . map (\(sourceName, destName,_,_,_) -> (sourceName, destName)) . V.toList
 
 -- ============ App Config/State =================
 
