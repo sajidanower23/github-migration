@@ -102,7 +102,7 @@ pConfig = id
   <*< flg toHost      't' "to-host"       "To Host"
   <*< flg toAPIKey    'l' "to-api-key"    "To API Key"
   <*< flg toRepoStr   's' "to-repo"       "Dest Repo"
-  <*< flg userMapFile 'c' "user-map-file" "CSV File containing user maps"
+  <*< flg userMapFile 'm' "user-map-file" "CSV File containing user maps"
 
 -- ============ User Types =================
 
