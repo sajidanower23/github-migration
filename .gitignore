@@ -24,3 +24,5 @@ cabal.project.local~
 .stack-work/
 *~
 
+.vscode/
+user_map.json

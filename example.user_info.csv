@@ -1,0 +1,3 @@
+username_source, username_dest, useremail_source, useremail_dest, accesstoken_dest
+johndoe007, doeBoy, john.doe@company.com, dohn@doe.com, ABCDEF123456789
+janedoe007, doeGirl, jane.doe@company.com, jane@doe.com, 123456789ABCDEF
