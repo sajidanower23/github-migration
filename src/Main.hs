@@ -16,9 +16,12 @@ import GitHub.Endpoints.Issues (editOfIssue)
 
 import Control.Concurrent (threadDelay)
 
-import           Data.Time.Clock.POSIX
-import           Formatting            hiding ((%))
-import qualified Formatting            as F
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
+import Data.Time.LocalTime
+
+import           Formatting      hiding ((%))
+import qualified Formatting      as F
 import           Formatting.Time
 
 import Network.HTTP.Client       (HttpException (..), HttpExceptionContent (..),
@@ -207,7 +210,7 @@ sourceRepo f g = do
   source (g f')
 
 destWithAuth :: UserName -> Request x a -> App a
-destWithAuth sourceName r = do
+destWithAuth sourceName r = handleAbuseErrors $ do
   Config fromAuth toAuth authMap nameMap fromRepo toRepo <- ask
   liftIO (print r)
   let mUserInfo = H.lookup sourceName authMap
@@ -241,7 +244,7 @@ destRepo f g = do
 handleAbuseErrors :: App a -> App a
 handleAbuseErrors m = go 0 where
   go n | n > 3 = throwError (UserError "Request was blocked three times for abuse, failing.")
-       | otherwise = m `catchError` \e -> case e of
+       | otherwise = m `catchError` \e -> case e of -- My kingdom for some prisms
           HTTPError (HttpExceptionRequest _req (StatusCodeException resp msg)) -> 
             case responseStatus resp of
               Status{statusCode = 403, statusMessage = "Forbidden"} -> 
@@ -250,10 +253,16 @@ handleAbuseErrors m = go 0 where
                     [(posixSecs::Int,"")] -> do
                       liftIO $ do 
                         nowP <- getPOSIXTime
-                        let waitTime = fromIntegral posixSecs - nowP
-                        fprint ("Delaying for " F.% diff False F.% "\n") waitTime 
+                        tz <- getCurrentTimeZone
+                        -- Time divided by 3 because github lets you start
+                        -- posting again sooner than the reset time
+                        let waitTime = (fromIntegral posixSecs - nowP) / (max 1 (3 - n)) + 2
+                        fprint ("Abuse limit triggered, delaying for " F.% diff False 
+                               F.% " (Until " F.% hmsPL F.% ")\n") 
+                              waitTime 
+                              (utcToZonedTime tz (addUTCTime waitTime (posixSecondsToUTCTime nowP)))
                         threadDelay (ceiling waitTime * 10^6)
-                      handleAbuseErrors m
+                      go (n+1)
                     _ -> throwError e
                   _ -> throwError e
               _ -> throwError e
