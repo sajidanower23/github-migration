@@ -81,6 +81,10 @@ executable github-migration
                      , mtl
                      , vector
                      , unordered-containers
+                     , http-client
+                     , http-types
+                     , time
+                     , formatting
   
   -- Directories containing source files.
   hs-source-dirs:      src

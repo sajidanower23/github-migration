@@ -9,24 +9,41 @@ module Main where
 
 import GHC.Generics (Generic)
 
-import GitHub
+import GitHub                  hiding (Status)
 import GitHub.Data.Id
 import GitHub.Data.Name        (Name (..))
 import GitHub.Endpoints.Issues (editOfIssue)
 
+import Control.Concurrent (threadDelay)
+
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
+import Data.Time.LocalTime
+
+import           Formatting      hiding ((%))
+import qualified Formatting      as F
+import           Formatting.Time
+
+import Network.HTTP.Client       (HttpException (..), HttpExceptionContent (..),
+                                  responseHeaders, responseStatus)
+import Network.HTTP.Types.Status (Status (..))
+
 import           Data.Aeson
+import qualified Data.ByteString       as BS
+import qualified Data.ByteString.Char8 as BS8
 import           Data.Foldable
-import           Data.Proxy    (Proxy (..))
-import           Data.String   (IsString (..))
-import           Data.Text     (Text, isInfixOf, split, unpack)
-import qualified Data.Text     as T
+import           Data.Proxy            (Proxy (..))
+import           Data.String           (IsString (..))
+import           Data.Text             (Text, isInfixOf, split, unpack)
+import qualified Data.Text             as T
+
 
 import Data.Either (fromRight, partitionEithers)
 
 import Control.Monad.Except
 import Control.Monad.Reader
 
-import Configuration.Utils
+import Configuration.Utils 
 import Options.Applicative
 import PkgInfo_github_migration
 
@@ -182,7 +199,7 @@ liftG = lift . ExceptT
 
 -- Run a request on the 'from' server
 source :: Request x a -> App a
-source r = do
+source r = handleAbuseErrors $ do
   Config{..} <- ask
   liftIO (print r)
   liftG (executeRequest _sourceAuth r)
@@ -193,7 +210,7 @@ sourceRepo f g = do
   source (g f')
 
 destWithAuth :: UserName -> Request x a -> App a
-destWithAuth sourceName r = do
+destWithAuth sourceName r = handleAbuseErrors $ do
   Config fromAuth toAuth authMap nameMap fromRepo toRepo <- ask
   liftIO (print r)
   let mUserInfo = H.lookup sourceName authMap
@@ -213,7 +230,7 @@ destRepoWithAuth username f g = do
 
 -- Run a request on the 'to' server
 dest :: Request x a -> App a
-dest r = do
+dest r = handleAbuseErrors $ do
   Config{..} <- ask
   liftIO (print r)
   liftG (executeRequest _destAuth r)
@@ -222,6 +239,34 @@ destRepo :: (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
 destRepo f g = do
   f' <- uncurry f <$> asks _destRepo
   dest (g f')
+
+
+handleAbuseErrors :: App a -> App a
+handleAbuseErrors m = go 0 where
+  go n | n > 3 = throwError (UserError "Request was blocked three times for abuse, failing.")
+       | otherwise = m `catchError` \e -> case e of -- My kingdom for some prisms
+          HTTPError (HttpExceptionRequest _req (StatusCodeException resp msg)) -> 
+            case responseStatus resp of
+              Status{statusCode = 403, statusMessage = "Forbidden"} -> 
+                case lookup "X-RateLimit-Reset" (responseHeaders resp) of
+                  Just posixSecsBS -> case reads (BS8.unpack posixSecsBS) of
+                    [(posixSecs::Int,"")] -> do
+                      liftIO $ do 
+                        nowP <- getPOSIXTime
+                        tz <- getCurrentTimeZone
+                        -- Time divided by 3 because github lets you start
+                        -- posting again sooner than the reset time
+                        let waitTime = (fromIntegral posixSecs - nowP) / (max 1 (3 - n)) + 2
+                        fprint ("Abuse limit triggered, delaying for " F.% diff False 
+                               F.% " (Until " F.% hmsPL F.% ")\n") 
+                              waitTime 
+                              (utcToZonedTime tz (addUTCTime waitTime (posixSecondsToUTCTime nowP)))
+                        threadDelay (ceiling waitTime * 10^6)
+                      go (n+1)
+                    _ -> throwError e
+                  _ -> throwError e
+              _ -> throwError e
+          _ -> throwError e
 
 mainInfo :: ProgramInfo Opts
 mainInfo = programInfo "github-migration" pConfig defaultConfig
