@@ -43,7 +43,7 @@ import Data.Either (fromRight, partitionEithers)
 import Control.Monad.Except
 import Control.Monad.Reader
 
-import Configuration.Utils 
+import Configuration.Utils
 import Options.Applicative
 import PkgInfo_github_migration
 
@@ -142,10 +142,10 @@ readUserMapFile mapFile = do
     Left err -> error $ "Could not read CSV: " <> err
     Right v  -> pure v
 
-userVToAuthMap :: Text -> V.Vector CSVStructure -> UserAuthMap
+userVToAuthMap :: Text -> V.Vector CSVStructure -> Either Text UserAuthMap
 userVToAuthMap host =
     H.fromList
-  . map (\(sourceName,_,_,_,token) -> (sourceName, handleAuthError (makeAuth host token)))
+  . map (\(sourceName,_,_,_,token) -> ((,) sourceName) <*> makeAuth host token)
   . V.toList
   where
     handleAuthError :: Either Text Auth -> Auth
@@ -169,12 +169,15 @@ data Config = Config
   ,_destRepo    :: (Name Owner, Name Repo)
   }
 
-optsToConfig :: UserNameMap -> UserAuthMap -> Opts -> Either Text Config
+optsToConfig :: Either Text UserNameMap
+             -> Either Text UserAuthMap
+             -> Opts
+             -> Either Text Config
 optsToConfig userNameHt authHt Opts{..} = Config
   <$> makeAuth _fromHost _fromAPIKey
   <*> makeAuth _toHost _toAPIKey
-  <*> Right authHt
-  <*> Right userNameHt
+  <*> authHt
+  <*> userNameHt
   <*> makeRepoName _fromRepoStr
   <*> makeRepoName _toRepoStr
 
@@ -245,21 +248,21 @@ handleAbuseErrors :: App a -> App a
 handleAbuseErrors m = go 0 where
   go n | n > 3 = throwError (UserError "Request was blocked three times for abuse, failing.")
        | otherwise = m `catchError` \e -> case e of -- My kingdom for some prisms
-          HTTPError (HttpExceptionRequest _req (StatusCodeException resp msg)) -> 
+          HTTPError (HttpExceptionRequest _req (StatusCodeException resp msg)) ->
             case responseStatus resp of
-              Status{statusCode = 403, statusMessage = "Forbidden"} -> 
+              Status{statusCode = 403, statusMessage = "Forbidden"} ->
                 case lookup "X-RateLimit-Reset" (responseHeaders resp) of
                   Just posixSecsBS -> case reads (BS8.unpack posixSecsBS) of
                     [(posixSecs::Int,"")] -> do
-                      liftIO $ do 
+                      liftIO $ do
                         nowP <- getPOSIXTime
                         tz <- getCurrentTimeZone
                         -- Time divided by 3 because github lets you start
                         -- posting again sooner than the reset time
                         let waitTime = (fromIntegral posixSecs - nowP) / (max 1 (3 - n)) + 2
-                        fprint ("Abuse limit triggered, delaying for " F.% diff False 
-                               F.% " (Until " F.% hmsPL F.% ")\n") 
-                              waitTime 
+                        fprint ("Abuse limit triggered, delaying for " F.% diff False
+                               F.% " (Until " F.% hmsPL F.% ")\n")
+                              waitTime
                               (utcToZonedTime tz (addUTCTime waitTime (posixSecondsToUTCTime nowP)))
                         threadDelay (ceiling waitTime * 10^6)
                       go (n+1)
