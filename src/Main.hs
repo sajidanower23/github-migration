@@ -9,22 +9,41 @@ module Main where
 
 import GHC.Generics (Generic)
 
-import GitHub
+import GitHub                  hiding (Status)
 import GitHub.Data.Id
 import GitHub.Data.Name        (Name (..))
 import GitHub.Endpoints.Issues (editOfIssue)
 
+import Control.Concurrent (threadDelay)
+
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
+import Data.Time.LocalTime
+
+import           Formatting      hiding ((%))
+import qualified Formatting      as F
+import           Formatting.Time
+
+import Network.HTTP.Client       (HttpException (..), HttpExceptionContent (..),
+                                  responseHeaders, responseStatus)
+import Network.HTTP.Types.Status (Status (..))
+
 import           Data.Aeson
+import qualified Data.ByteString       as BS
+import qualified Data.ByteString.Char8 as BS8
 import           Data.Foldable
-import           Data.Proxy    (Proxy (..))
-import           Data.String   (IsString (..))
-import           Data.Text     (Text, isInfixOf, split, unpack)
-import qualified Data.Text     as T
+import           Data.Proxy            (Proxy (..))
+import           Data.String           (IsString (..))
+import           Data.Text             (Text, isInfixOf, split, unpack)
+import qualified Data.Text             as T
+
+
+import Data.Either (fromRight, partitionEithers)
 
 import Control.Monad.Except
 import Control.Monad.Reader
 
-import Configuration.Utils
+import Configuration.Utils 
 import Options.Applicative
 import PkgInfo_github_migration
 
@@ -100,7 +119,7 @@ pConfig = id
   <*< flg toHost      't' "to-host"       "To Host"
   <*< flg toAPIKey    'l' "to-api-key"    "To API Key"
   <*< flg toRepoStr   's' "to-repo"       "Dest Repo"
-  <*< flg userMapFile 'c' "user-map-file" "CSV File containing user maps"
+  <*< flg userMapFile 'm' "user-map-file" "CSV File containing user maps"
 
 -- ============ User Types =================
 
@@ -119,31 +138,25 @@ type CSVStructure = (Text, Text, Text, Text, String)
 readUserMapFile :: FilePath -> IO (V.Vector CSVStructure)
 readUserMapFile mapFile = do
   userInfoData <- BL.readFile mapFile
-  case CSV.decode CSV.NoHeader userInfoData of
+  case CSV.decode CSV.HasHeader userInfoData of
     Left err -> error $ "Could not read CSV: " <> err
     Right v  -> pure v
 
 userVToAuthMap :: Text -> V.Vector CSVStructure -> UserAuthMap
-userVToAuthMap host = vecToAuthTable host H.empty
+userVToAuthMap host =
+    H.fromList
+  . map (\(sourceName,_,_,_,token) -> (sourceName, handleAuthError (makeAuth host token)))
+  . V.toList
   where
-    vecToAuthTable host ht v
-      | V.null v  = ht
-      | otherwise =
-          let (sourceName, _, _, _, token) = V.head v
-              eAuth = makeAuth host token
-          in
-          case eAuth of
-            Left err -> error $ "Error while parsing user data: " <> show err
-            Right auth -> vecToAuthTable host (H.insert sourceName auth ht) (V.tail v)
+    handleAuthError :: Either Text Auth -> Auth
+    handleAuthError =
+        either
+          (\err -> error $ "Error while constructing auth data: " <> show err)
+          id
 
 userVToNameMap :: V.Vector CSVStructure -> UserNameMap
-userVToNameMap = makeNameTable H.empty
-  where
-    makeNameTable ht v
-      | V.null v  = ht
-      | otherwise =
-        let (sourceName, destName, _, _, _) = V.head v in
-          makeNameTable (H.insert sourceName destName ht) (V.tail v)
+userVToNameMap =
+  H.fromList . map (\(sourceName, destName,_,_,_) -> (sourceName, destName)) . V.toList
 
 -- ============ App Config/State =================
 
@@ -186,7 +199,7 @@ liftG = lift . ExceptT
 
 -- Run a request on the 'from' server
 source :: Request x a -> App a
-source r = do
+source r = handleAbuseErrors $ do
   Config{..} <- ask
   liftIO (print r)
   liftG (executeRequest _sourceAuth r)
@@ -197,13 +210,16 @@ sourceRepo f g = do
   source (g f')
 
 destWithAuth :: UserName -> Request x a -> App a
-destWithAuth username r = do
+destWithAuth sourceName r = handleAbuseErrors $ do
   Config fromAuth toAuth authMap nameMap fromRepo toRepo <- ask
   liftIO (print r)
-  let mUserInfo = H.lookup username authMap
+  let mUserInfo = H.lookup sourceName authMap
   case mUserInfo of
-    Nothing -> dest r -- defaulting to dest without auth
+    Nothing -> do
+      liftIO (print $ "Could not find auth map for username: " <> sourceName <> ", using default auth")
+      dest r -- defaulting to dest without auth
     Just auth -> do
+      liftIO (print $ "Request being executed as " <> sourceName)
       liftG (executeRequest auth r)
 
 destRepoWithAuth :: UserName -> (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
@@ -214,7 +230,7 @@ destRepoWithAuth username f g = do
 
 -- Run a request on the 'to' server
 dest :: Request x a -> App a
-dest r = do
+dest r = handleAbuseErrors $ do
   Config{..} <- ask
   liftIO (print r)
   liftG (executeRequest _destAuth r)
@@ -223,6 +239,34 @@ destRepo :: (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
 destRepo f g = do
   f' <- uncurry f <$> asks _destRepo
   dest (g f')
+
+
+handleAbuseErrors :: App a -> App a
+handleAbuseErrors m = go 0 where
+  go n | n > 3 = throwError (UserError "Request was blocked three times for abuse, failing.")
+       | otherwise = m `catchError` \e -> case e of -- My kingdom for some prisms
+          HTTPError (HttpExceptionRequest _req (StatusCodeException resp msg)) -> 
+            case responseStatus resp of
+              Status{statusCode = 403, statusMessage = "Forbidden"} -> 
+                case lookup "X-RateLimit-Reset" (responseHeaders resp) of
+                  Just posixSecsBS -> case reads (BS8.unpack posixSecsBS) of
+                    [(posixSecs::Int,"")] -> do
+                      liftIO $ do 
+                        nowP <- getPOSIXTime
+                        tz <- getCurrentTimeZone
+                        -- Time divided by 3 because github lets you start
+                        -- posting again sooner than the reset time
+                        let waitTime = (fromIntegral posixSecs - nowP) / (max 1 (3 - n)) + 2
+                        fprint ("Abuse limit triggered, delaying for " F.% diff False 
+                               F.% " (Until " F.% hmsPL F.% ")\n") 
+                              waitTime 
+                              (utcToZonedTime tz (addUTCTime waitTime (posixSecondsToUTCTime nowP)))
+                        threadDelay (ceiling waitTime * 10^6)
+                      go (n+1)
+                    _ -> throwError e
+                  _ -> throwError e
+              _ -> throwError e
+          _ -> throwError e
 
 mainInfo :: ProgramInfo Opts
 mainInfo = programInfo "github-migration" pConfig defaultConfig
@@ -233,7 +277,7 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   userV <- readUserMapFile (_userMapFile opts)
   let authHt = userVToAuthMap (_toHost opts) userV
       userNameHt = userVToNameMap userV
-  res <- (optsToConfig userNameHt authHt) opts & either (error . show) (\conf -> runApp conf $ do
+  res <- optsToConfig userNameHt authHt opts & either (error . show) (\conf -> runApp conf $ do
     transferLabels
     transferMilestones
     transferIssues
@@ -244,20 +288,16 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
 
 -- ============ Transfer Utils =================
 
+getName :: (Name a) -> Text
+getName (N t) = t
+
 -- | Lookup what each user in source is called in dest
-getDestAssignees :: V.Vector (Name User) -> App (V.Vector (Name User))
-getDestAssignees sourceAssignees = do
+getDestUsers :: V.Vector (Name User) -> App (V.Vector (Name User))
+getDestUsers sourceAssignees = do
   userNameHt <- asks _userInfoMap
-  findDestAssignee userNameHt V.empty sourceAssignees
+  pure $ N <$> findDestUser userNameHt (getName <$> sourceAssignees)
   where
-    findDestAssignee nameHt acc v
-      | V.null v = pure acc
-      | otherwise =
-          let (N srcName) = V.head v
-          in
-            case H.lookup srcName nameHt of
-              Nothing -> findDestAssignee nameHt acc (V.tail v) -- dropping this assignee
-              Just dName -> findDestAssignee nameHt (V.snoc acc ((N dName) :: Name User)) (V.tail v)
+    findDestUser nameHt = V.mapMaybe (`H.lookup` nameHt)
 
 transferIssues :: App ()
 transferIssues = do
@@ -268,7 +308,7 @@ transferIssues = do
     transferIssue iss = do
       let (N authorName) = simpleUserLogin . issueUser $ iss
           srcAssignees = simpleUserLogin <$> issueAssignees iss
-      destAssignees <- getDestAssignees srcAssignees
+      destAssignees <- getDestUsers srcAssignees
       _ <- destRepoWithAuth authorName createIssueR ($ NewIssue
           { newIssueTitle     = issueTitle iss
           , newIssueBody      = (<> ("\n\n_Original Author: " <> authorName <> "_\n\n_(Moved with "<> pkgInfo ^. _3 <> ")_")) <$> issueBody iss
@@ -283,15 +323,11 @@ transferIssues = do
 
 -- | If the issue is closed in src, it closes it in dest
 maybeCloseIssue :: Issue -> App ()
-maybeCloseIssue iss = do
-  case issueClosedAt iss of
-    Nothing -> pure ()
-    Just _  ->
-      let (N authorName) = simpleUserLogin . issueUser $ iss
-          iid = Id $ issueNumber iss
-          in do
-            _ <- destRepoWithAuth authorName editIssueR $ \f -> f iid editOfIssue{ editIssueState = Just StateClosed }
-            pure ()
+maybeCloseIssue iss =
+  for_ (issueClosedAt iss) $ \_ -> do
+    let (N authorName) = simpleUserLogin . issueUser $ iss
+        iid = Id $ issueNumber iss
+    destRepoWithAuth authorName editIssueR $ \f -> f iid editOfIssue{ editIssueState = Just StateClosed }
 
 transferIssueComments :: Issue -> App ()
 transferIssueComments iss = do
