@@ -5,11 +5,12 @@ to another.
 
 ## Installation
 
-The easiest way to run this is to install `stack`, compile it and run it.
+The easiest way to run this is to download the script, install `stack`,
+and then compile and run it with `stack`.
 
 ### Download the script
 
-```console
+```
 git clone https://github.com:sajidanower23/github-migration
 cd github-migration
 ```
@@ -18,19 +19,19 @@ cd github-migration
 
 `stack` is also available for install via `apt` but it may be a very old version.
 
-```console
+```
 sudo apt install haskell-stack
 ```
 
 To install the latest version of `stack`, run:
 
-```console
+```
 wget -qO- https://get.haskellstack.org/ | sh
 ```
 
 The latest version of `stack` the program has been tested on is:
 
-```console
+```
 $ stack --version
 Version 1.9.1, Git revision f9d0042c141660e1d38f797e1d426be4a99b2a3c (6168 commits) x86_64 hpack-0.31.0
 ```
@@ -39,14 +40,14 @@ Version 1.9.1, Git revision f9d0042c141660e1d38f797e1d426be4a99b2a3c (6168 commi
 
 ### Via compiled executable
 
-```console
+```
 stack build
 stack exec github-migration -- <args>
 ```
 
 ## Usage
 
-```console
+```
 $ stack exec github-migration -- -h
 Usage: github-migration [--info] [--long-info] [-v|--version] [--license]
                         [-?|-h|--help] [--print-config]
