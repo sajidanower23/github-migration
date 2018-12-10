@@ -135,7 +135,20 @@ will be attributed to the user running the migration. However, issues
 and issue comments will have an attribution at the bottom saying who was the
 original author.
 
+## Assumptions
+
+The following assumptions are made when the program runs, and will likely result
+in an error (and halting of execution) if they are not met:
+
+- The users in destination repo are already added as collaborators
+- The user running has read access to everything in the source repo, and has full write-access to destination repo.
+- Each access key (given via the CSV file) has write-access to the destination repo
+- No milestones were deleted in source repo.
+- No issues were deleted in source repo.
+
 ## Known Issues / Future features
 
-- Transfers Pull Requests as an Issue instead of a Pull Request, which means that the Pull Request diff is lost.
+- Transfers Pull Requests as an Issue instead of a Pull Request.
 - Releases are not transferred.
+- If some milestones were deleted in the source repo, the milestones in the dest repo will not have the same order, and by extension, the milestone assignments will be incorrect.
+- If an issue was deleted (a relatively new feature exclusive to github.com), the order of issues will be incorrect in the destination repo.
