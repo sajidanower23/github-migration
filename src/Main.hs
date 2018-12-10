@@ -361,7 +361,7 @@ transferLabels = do
 
 transferMilestones :: App ()
 transferMilestones = do
-  sourceMilestones <- sourceRepo milestonesR ($ FetchAll)
+  sourceMilestones <- sourceRepo milestonesWithOptsR $ \f -> f (stateAll <> sortAscending) FetchAll
   traverse_ transferMilestone sourceMilestones
   where
     milestoneToNewMilestone :: Milestone -> NewMilestone
@@ -377,3 +377,10 @@ transferMilestones = do
     transferMilestone mlstn =
       let (N authorName) = simpleUserLogin . milestoneCreator $ mlstn in
       destRepoWithAuth authorName createMilestoneR ($ milestoneToNewMilestone mlstn)
+
+
+milestonesWithOptsR :: Name Owner -> Name Repo -> IssueRepoMod -> FetchCount -> Request k (V.Vector Milestone)
+milestonesWithOptsR user repo opts =
+    pagedQuery ["repos", toPathPart user, toPathPart repo, "milestones"] optsStr
+    where
+      optsStr = issueRepoModToQueryString opts
