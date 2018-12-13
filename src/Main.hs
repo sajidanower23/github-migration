@@ -361,7 +361,7 @@ transferMilestones = do
   sourceMilestones <- sourceRepo milestonesWithOptsR $ \f -> f (stateAll <> sortAscending) FetchAll
   deletedMlstns <- transferAllMilestones 1 (V.toList sourceMilestones) []
   liftIO $ print $ "Deleting the following milestones in dest: " <> show (map (\(Id n) -> n) deletedMlstns)
-  traverse_ deleteMilestone deletedMlstns
+  traverse_ (\mid -> destRepo deleteMilestoneR ($ mid)) deletedMlstns
   where
     dummyNewMilestone :: NewMilestone
     dummyNewMilestone =
@@ -383,7 +383,7 @@ transferMilestones = do
       else do
         liftIO $ print $ "Milestone " <> show n <> " appears to have been deleted in source."
         toBeDeleted <- destRepo createMilestoneR ($ dummyNewMilestone {newMilestoneTitle = "Dummy milestone: " <> (T.pack . show $ n)})
-        transferAllMilestones (n + 1) mlist (acc <> [milestoneNumber toBeDeleted])
+        transferAllMilestones (n + 1) mlist ((milestoneNumber toBeDeleted):acc)
     milestoneToNewMilestone :: Milestone -> NewMilestone
     milestoneToNewMilestone mlstn =
       NewMilestone
@@ -396,9 +396,6 @@ transferMilestones = do
     transferSingleMilestone mlstn =
       let (N authorName) = simpleUserLogin . milestoneCreator $ mlstn in
       destRepoWithAuth authorName createMilestoneR ($ milestoneToNewMilestone mlstn)
-    deleteMilestone :: Id Milestone -> App ()
-    deleteMilestone mid = destRepo deleteMilestoneR ($ mid)
-
 
 milestonesWithOptsR :: Name Owner -> Name Repo -> IssueRepoMod -> FetchCount -> Request k (V.Vector Milestone)
 milestonesWithOptsR user repo opts =
