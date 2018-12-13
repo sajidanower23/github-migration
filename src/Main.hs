@@ -211,7 +211,7 @@ sourceRepo f g = do
 
 destWithAuth :: UserName -> Request x a -> App a
 destWithAuth sourceName r = handleAbuseErrors $ do
-  Config fromAuth toAuth authMap nameMap fromRepo toRepo <- ask
+  Config _fromAuth _toAuth authMap _nameMap _fromRepo _toRepo <- ask
   liftIO (print r)
   let mUserInfo = H.lookup sourceName authMap
   case mUserInfo of
@@ -220,7 +220,10 @@ destWithAuth sourceName r = handleAbuseErrors $ do
       dest r -- defaulting to dest without auth
     Just auth -> do
       liftIO (print $ "Request being executed as " <> sourceName)
-      liftG (executeRequest auth r)
+      liftG (executeRequest auth r) `catchError` \e -> do
+        liftIO . print $ "Encountered error: " <> show e
+        liftIO . print $ "Using default auth"
+        dest r
 
 destRepoWithAuth :: UserName -> (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
 destRepoWithAuth username f g = do
