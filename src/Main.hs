@@ -292,7 +292,8 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
 
 inviteDestUsers :: App ()
 inviteDestUsers = do
-  Config _fromAuth _toAuth _authMap nameMap _fromRepo (N owner, _toRepoName) <- ask
+  nameMap <- asks _userInfoMap
+  N owner <- asks (fst . _destRepo)
   traverse_
     (\(srcUser, destUser) -> do
       when (owner /= destUser) $ do
