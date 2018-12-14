@@ -5,11 +5,12 @@ to another.
 
 ## Installation
 
-The easiest way to run this is to install `stack`, compile it and run it.
+The easiest way to run this is to download the script, install `stack`,
+and then compile and run it with `stack`.
 
 ### Download the script
 
-```console
+```
 git clone https://github.com:sajidanower23/github-migration
 cd github-migration
 ```
@@ -18,19 +19,19 @@ cd github-migration
 
 `stack` is also available for install via `apt` but it may be a very old version.
 
-```console
+```
 sudo apt install haskell-stack
 ```
 
 To install the latest version of `stack`, run:
 
-```console
+```
 wget -qO- https://get.haskellstack.org/ | sh
 ```
 
 The latest version of `stack` the program has been tested on is:
 
-```console
+```
 $ stack --version
 Version 1.9.1, Git revision f9d0042c141660e1d38f797e1d426be4a99b2a3c (6168 commits) x86_64 hpack-0.31.0
 ```
@@ -39,14 +40,14 @@ Version 1.9.1, Git revision f9d0042c141660e1d38f797e1d426be4a99b2a3c (6168 commi
 
 ### Via compiled executable
 
-```console
+```
 stack build
 stack exec github-migration -- <args>
 ```
 
 ## Usage
 
-```console
+```
 $ stack exec github-migration -- -h
 Usage: github-migration [--info] [--long-info] [-v|--version] [--license]
                         [-?|-h|--help] [--print-config]
@@ -134,7 +135,20 @@ will be attributed to the user running the migration. However, issues
 and issue comments will have an attribution at the bottom saying who was the
 original author.
 
+## Assumptions
+
+The following assumptions are made when the program runs, and will likely result
+in an error (and halting of execution) if they are not met:
+
+- The users in destination repo are already added as collaborators
+- The user running has read access to everything in the source repo, and has full write-access to destination repo.
+- Each access key (given via the CSV file) has write-access to the destination repo
+- No milestones were deleted in source repo ([related issue](https://github.com/sajidanower23/github-migration/issues/23))
+- No issues were deleted in source repo ([related issue](https://github.com/sajidanower23/github-migration/issues/10))
+
 ## Known Issues / Future features
 
-- Transfers Pull Requests as an Issue instead of a Pull Request, which means that the Pull Request diff is lost.
+- Transfers Pull Requests as an Issue instead of a Pull Request. ([related issue](https://github.com/sajidanower23/github-migration/issues/15))
 - Releases are not transferred.
+- If some milestones were deleted in the source repo, the milestones in the dest repo will not have the same order, and by extension, the milestone assignments will be incorrect.
+- If an issue was deleted (a relatively new feature exclusive to github.com), the order of issues will be incorrect in the destination repo.
