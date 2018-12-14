@@ -34,4 +34,4 @@ jobs:
           key: deps-
           paths:
             - ~/.stack
-            - ~/.stack-work
+            - ".stack-work"
