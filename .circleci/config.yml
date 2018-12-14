@@ -28,7 +28,7 @@ jobs:
           name: install dependencies
           command: |
             stack setup
-            stack build --fast
+            stack --no-terminal build --fast
       - save_cache:
           name: cache dependencies
           key: stack-cache-
