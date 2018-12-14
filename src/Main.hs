@@ -211,7 +211,7 @@ sourceRepo f g = do
 
 destWithAuth :: UserName -> Request x a -> App a
 destWithAuth sourceName r = handleAbuseErrors $ do
-  Config _fromAuth _toAuth authMap _nameMap _fromRepo _toRepo <- ask
+  authMap <- asks _userAuthMap
   liftIO (print r)
   let mUserInfo = H.lookup sourceName authMap
   case mUserInfo of
