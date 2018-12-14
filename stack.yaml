@@ -38,8 +38,8 @@ packages:
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- git: git@github.com:axman6/github.git
-  commit: 6e4038c5b0ff6eb94c8c7f1e5fb3e432514421b5
+- git: git@github.com:sajidanower23/github.git
+  commit: 761b8d2e2439cc78aab489cd0c46a5a0b8e737b7
 - aeson-1.4.1.0
 
 # Override default flag values for local packages and extra-deps

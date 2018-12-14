@@ -43,7 +43,7 @@ import Data.Either (fromRight, partitionEithers)
 import Control.Monad.Except
 import Control.Monad.Reader
 
-import Configuration.Utils 
+import Configuration.Utils
 import Options.Applicative
 import PkgInfo_github_migration
 
@@ -245,21 +245,21 @@ handleAbuseErrors :: App a -> App a
 handleAbuseErrors m = go 0 where
   go n | n > 3 = throwError (UserError "Request was blocked three times for abuse, failing.")
        | otherwise = m `catchError` \e -> case e of -- My kingdom for some prisms
-          HTTPError (HttpExceptionRequest _req (StatusCodeException resp msg)) -> 
+          HTTPError (HttpExceptionRequest _req (StatusCodeException resp msg)) ->
             case responseStatus resp of
-              Status{statusCode = 403, statusMessage = "Forbidden"} -> 
+              Status{statusCode = 403, statusMessage = "Forbidden"} ->
                 case lookup "X-RateLimit-Reset" (responseHeaders resp) of
                   Just posixSecsBS -> case reads (BS8.unpack posixSecsBS) of
                     [(posixSecs::Int,"")] -> do
-                      liftIO $ do 
+                      liftIO $ do
                         nowP <- getPOSIXTime
                         tz <- getCurrentTimeZone
                         -- Time divided by 3 because github lets you start
                         -- posting again sooner than the reset time
                         let waitTime = (fromIntegral posixSecs - nowP) / (max 1 (3 - n)) + 2
-                        fprint ("Abuse limit triggered, delaying for " F.% diff False 
-                               F.% " (Until " F.% hmsPL F.% ")\n") 
-                              waitTime 
+                        fprint ("Abuse limit triggered, delaying for " F.% diff False
+                               F.% " (Until " F.% hmsPL F.% ")\n")
+                              waitTime
                               (utcToZonedTime tz (addUTCTime waitTime (posixSecondsToUTCTime nowP)))
                         threadDelay (ceiling waitTime * 10^6)
                       go (n+1)
@@ -361,7 +361,7 @@ transferLabels = do
 
 transferMilestones :: App ()
 transferMilestones = do
-  sourceMilestones <- sourceRepo milestonesR ($ FetchAll)
+  sourceMilestones <- sourceRepo milestonesWithOptsR $ \f -> f (stateAll <> sortAscending) FetchAll
   traverse_ transferMilestone sourceMilestones
   where
     milestoneToNewMilestone :: Milestone -> NewMilestone
@@ -377,3 +377,10 @@ transferMilestones = do
     transferMilestone mlstn =
       let (N authorName) = simpleUserLogin . milestoneCreator $ mlstn in
       destRepoWithAuth authorName createMilestoneR ($ milestoneToNewMilestone mlstn)
+
+
+milestonesWithOptsR :: Name Owner -> Name Repo -> IssueRepoMod -> FetchCount -> Request k (V.Vector Milestone)
+milestonesWithOptsR user repo opts =
+    pagedQuery ["repos", toPathPart user, toPathPart repo, "milestones"] optsStr
+    where
+      optsStr = issueRepoModToQueryString opts
