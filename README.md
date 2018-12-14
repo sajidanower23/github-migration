@@ -140,15 +140,14 @@ original author.
 The following assumptions are made when the program runs, and will likely result
 in an error (and halting of execution) if they are not met:
 
-- The users in destination repo are already added as collaborators
+
 - The user running has read access to everything in the source repo, and has full write-access to destination repo.
 - Each access key (given via the CSV file) has write-access to the destination repo
-- No milestones were deleted in source repo ([related issue](https://github.com/sajidanower23/github-migration/issues/23))
+
 - No issues were deleted in source repo ([related issue](https://github.com/sajidanower23/github-migration/issues/10))
 
 ## Known Issues / Future features
 
 - Transfers Pull Requests as an Issue instead of a Pull Request. ([related issue](https://github.com/sajidanower23/github-migration/issues/15))
 - Releases are not transferred.
-- If some milestones were deleted in the source repo, the milestones in the dest repo will not have the same order, and by extension, the milestone assignments will be incorrect.
 - If an issue was deleted (a relatively new feature exclusive to github.com), the order of issues will be incorrect in the destination repo.

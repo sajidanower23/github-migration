@@ -9,10 +9,11 @@ module Main where
 
 import GHC.Generics (Generic)
 
-import GitHub                  hiding (Status)
+import GitHub                               hiding (Status)
 import GitHub.Data.Id
-import GitHub.Data.Name        (Name (..))
-import GitHub.Endpoints.Issues (editOfIssue)
+import GitHub.Data.Name                     (Name (..))
+import GitHub.Endpoints.Issues              (editOfIssue)
+import GitHub.Endpoints.Repos.Collaborators (addCollaboratorR)
 
 import Control.Concurrent (threadDelay)
 
@@ -36,9 +37,6 @@ import           Data.Proxy            (Proxy (..))
 import           Data.String           (IsString (..))
 import           Data.Text             (Text, isInfixOf, split, unpack)
 import qualified Data.Text             as T
-
-
-import Data.Either (fromRight, partitionEithers)
 
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -211,7 +209,7 @@ sourceRepo f g = do
 
 destWithAuth :: UserName -> Request x a -> App a
 destWithAuth sourceName r = handleAbuseErrors $ do
-  Config fromAuth toAuth authMap nameMap fromRepo toRepo <- ask
+  authMap <- asks _userAuthMap
   liftIO (print r)
   let mUserInfo = H.lookup sourceName authMap
   case mUserInfo of
@@ -220,7 +218,10 @@ destWithAuth sourceName r = handleAbuseErrors $ do
       dest r -- defaulting to dest without auth
     Just auth -> do
       liftIO (print $ "Request being executed as " <> sourceName)
-      liftG (executeRequest auth r)
+      liftG (executeRequest auth r) `catchError` \e -> do
+        liftIO . print $ "Encountered error: " <> show e
+        liftIO . print $ "Using default auth"
+        dest r
 
 destRepoWithAuth :: UserName -> (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
 destRepoWithAuth username f g = do
@@ -278,6 +279,7 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   let authHt = userVToAuthMap (_toHost opts) userV
       userNameHt = userVToNameMap userV
   res <- optsToConfig userNameHt authHt opts & either (error . show) (\conf -> runApp conf $ do
+    inviteDestUsers
     transferLabels
     transferMilestones
     transferIssues
@@ -286,16 +288,27 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   either print print res
   pure ()
 
--- ============ Transfer Utils =================
+-- ============ User Utils =================
 
-getName :: (Name a) -> Text
-getName (N t) = t
+inviteDestUsers :: App ()
+inviteDestUsers = do
+  nameMap <- asks _userInfoMap
+  N owner <- asks (fst . _destRepo)
+  traverse_
+    (\(srcUser, destUser) -> do
+      when (owner /= destUser) $ do
+        inv <- destRepo addCollaboratorR ($ (N destUser))
+        destWithAuth destUser (acceptInvitationFromR $ repoInvitationId inv)
+    )
+    $ H.toList nameMap
+
+-- ============ Transfer Utils =================
 
 -- | Lookup what each user in source is called in dest
 getDestUsers :: V.Vector (Name User) -> App (V.Vector (Name User))
 getDestUsers sourceAssignees = do
   userNameHt <- asks _userInfoMap
-  pure $ N <$> findDestUser userNameHt (getName <$> sourceAssignees)
+  pure $ N <$> findDestUser userNameHt (untagName <$> sourceAssignees)
   where
     findDestUser nameHt = V.mapMaybe (`H.lookup` nameHt)
 
@@ -362,8 +375,31 @@ transferLabels = do
 transferMilestones :: App ()
 transferMilestones = do
   sourceMilestones <- sourceRepo milestonesWithOptsR $ \f -> f (stateAll <> sortAscending) FetchAll
-  traverse_ transferMilestone sourceMilestones
+  deletedMlstns <- transferAllMilestones 1 (V.toList sourceMilestones) []
+  liftIO $ print $ "Deleting the following milestones in dest: " <> show (map (\(Id n) -> n) deletedMlstns)
+  traverse_ (\mid -> destRepo deleteMilestoneR ($ mid)) deletedMlstns
   where
+    dummyNewMilestone :: NewMilestone
+    dummyNewMilestone =
+      NewMilestone
+        { newMilestoneTitle = "Dummy milestone"
+        , newMilestoneState = "closed"
+        , newMilestoneDescription = Nothing
+        , newMilestoneDueOn = Nothing
+        }
+    -- Plugs in the deleted milestones and transfers them as well.
+    -- Returns a list of milestone numbers that need to be deleted in dest
+    transferAllMilestones :: Int -> [Milestone] -> [Id Milestone] -> App [Id Milestone]
+    transferAllMilestones _ [] acc = pure acc
+    transferAllMilestones n mlist@(m:ms) acc =
+      let (Id mid) = milestoneNumber m in
+      if mid == n then do
+        _ <- transferSingleMilestone m
+        transferAllMilestones (n + 1) ms acc
+      else do
+        liftIO $ print $ "Milestone " <> show n <> " appears to have been deleted in source."
+        toBeDeleted <- destRepo createMilestoneR ($ dummyNewMilestone {newMilestoneTitle = "Dummy milestone: " <> (T.pack . show $ n)})
+        transferAllMilestones (n + 1) mlist ((milestoneNumber toBeDeleted):acc)
     milestoneToNewMilestone :: Milestone -> NewMilestone
     milestoneToNewMilestone mlstn =
       NewMilestone
@@ -372,12 +408,10 @@ transferMilestones = do
         , newMilestoneDescription = milestoneDescription mlstn
         , newMilestoneDueOn = milestoneDueOn mlstn
         }
-
-    transferMilestone :: Milestone -> App Milestone
-    transferMilestone mlstn =
+    transferSingleMilestone :: Milestone -> App Milestone
+    transferSingleMilestone mlstn =
       let (N authorName) = simpleUserLogin . milestoneCreator $ mlstn in
       destRepoWithAuth authorName createMilestoneR ($ milestoneToNewMilestone mlstn)
-
 
 milestonesWithOptsR :: Name Owner -> Name Repo -> IssueRepoMod -> FetchCount -> Request k (V.Vector Milestone)
 milestonesWithOptsR user repo opts =

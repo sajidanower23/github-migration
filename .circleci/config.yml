@@ -18,7 +18,7 @@ jobs:
       - restore_cache:
           name: restore cached dependencies
           keys:
-            - deps-
+            - stack-cache-
       - run:
           name: install stack
           command: |
@@ -28,10 +28,10 @@ jobs:
           name: install dependencies
           command: |
             stack setup
-            stack build --fast
+            stack --no-terminal build --fast
       - save_cache:
           name: cache dependencies
-          key: deps-
+          key: stack-cache-
           paths:
             - ~/.stack
-            - ~/.stack-work
+            - ".stack-work"
