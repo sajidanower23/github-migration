@@ -140,8 +140,10 @@ original author.
 The following assumptions are made when the program runs, and will likely result
 in an error (and halting of execution) if they are not met:
 
+
 - The user running has read access to everything in the source repo, and has full write-access to destination repo.
 - Each access key (given via the CSV file) has write-access to the destination repo
+
 - No issues were deleted in source repo ([related issue](https://github.com/sajidanower23/github-migration/issues/10))
 
 ## Known Issues / Future features
