@@ -9,10 +9,11 @@ module Main where
 
 import GHC.Generics (Generic)
 
-import GitHub                  hiding (Status)
+import GitHub                               hiding (Status)
 import GitHub.Data.Id
-import GitHub.Data.Name        (Name (..))
-import GitHub.Endpoints.Issues (editOfIssue)
+import GitHub.Data.Name                     (Name (..))
+import GitHub.Endpoints.Issues              (editOfIssue)
+import GitHub.Endpoints.Repos.Collaborators (addCollaboratorR)
 
 import Control.Concurrent (threadDelay)
 
@@ -278,6 +279,7 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   let authHt = userVToAuthMap (_toHost opts) userV
       userNameHt = userVToNameMap userV
   res <- optsToConfig userNameHt authHt opts & either (error . show) (\conf -> runApp conf $ do
+    inviteDestUsers
     transferLabels
     transferMilestones
     transferIssues
@@ -286,16 +288,26 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
   either print print res
   pure ()
 
--- ============ Transfer Utils =================
+-- ============ User Utils =================
 
-getName :: (Name a) -> Text
-getName (N t) = t
+inviteDestUsers :: App ()
+inviteDestUsers = do
+  Config _fromAuth _toAuth _authMap nameMap _fromRepo (N owner, _toRepoName) <- ask
+  traverse_
+    (\(srcUser, destUser) -> do
+      when (owner /= destUser) $ do
+        inv <- destRepo addCollaboratorR ($ (N destUser))
+        destWithAuth destUser (acceptInvitationFromR $ repoInvitationId inv)
+    )
+    $ H.toList nameMap
+
+-- ============ Transfer Utils =================
 
 -- | Lookup what each user in source is called in dest
 getDestUsers :: V.Vector (Name User) -> App (V.Vector (Name User))
 getDestUsers sourceAssignees = do
   userNameHt <- asks _userInfoMap
-  pure $ N <$> findDestUser userNameHt (getName <$> sourceAssignees)
+  pure $ N <$> findDestUser userNameHt (untagName <$> sourceAssignees)
   where
     findDestUser nameHt = V.mapMaybe (`H.lookup` nameHt)
 

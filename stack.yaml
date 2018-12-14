@@ -39,7 +39,7 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - git: git@github.com:sajidanower23/github.git
-  commit: 6c94381
+  commit: 3a2db1b
 - aeson-1.4.1.0
 
 # Override default flag values for local packages and extra-deps
