@@ -37,6 +37,7 @@ import           Data.Proxy            (Proxy (..))
 import           Data.String           (IsString (..))
 import           Data.Text             (Text, isInfixOf, split, unpack)
 import qualified Data.Text             as T
+import           Data.List             (sortOn)
 
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -283,7 +284,6 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
     transferLabels
     transferMilestones
     transferIssues
-    rateLimitCore <$> source rateLimitR
     )
   either print print res
   pure ()
@@ -292,13 +292,14 @@ main = runWithPkgInfoConfiguration mainInfo pkgInfo $ \opts -> do
 
 inviteDestUsers :: App ()
 inviteDestUsers = do
+  liftIO $ putStrLn "Inviting users"
   nameMap <- asks _userInfoMap
   N owner <- asks (fst . _destRepo)
   traverse_
     (\(srcUser, destUser) -> do
       when (owner /= destUser) $ do
         inv <- destRepo addCollaboratorR ($ (N destUser))
-        destWithAuth destUser (acceptInvitationFromR $ repoInvitationId inv)
+        destWithAuth srcUser (acceptInvitationFromR $ repoInvitationId inv)
     )
     $ H.toList nameMap
 
@@ -375,7 +376,7 @@ transferLabels = do
 transferMilestones :: App ()
 transferMilestones = do
   sourceMilestones <- sourceRepo milestonesWithOptsR $ \f -> f (stateAll <> sortAscending) FetchAll
-  deletedMlstns <- transferAllMilestones 1 (V.toList sourceMilestones) []
+  deletedMlstns <- transferAllMilestones 1 (sortOn milestoneNumber $ V.toList sourceMilestones) []
   liftIO $ print $ "Deleting the following milestones in dest: " <> show (map (\(Id n) -> n) deletedMlstns)
   traverse_ (\mid -> destRepo deleteMilestoneR ($ mid)) deletedMlstns
   where

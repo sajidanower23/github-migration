@@ -38,7 +38,7 @@ packages:
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- git: git@github.com:sajidanower23/github.git
+- git: https://github.com/sajidanower23/github
   commit: 3a2db1b
 - aeson-1.4.1.0
 
