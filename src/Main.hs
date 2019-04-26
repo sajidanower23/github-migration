@@ -44,7 +44,7 @@ import Control.Monad.Reader
 
 import Configuration.Utils
 import Options.Applicative
-import PkgInfo_github_migration
+import PkgInfo
 
 import Lens.Micro    hiding (Lens')
 import Lens.Micro.TH
