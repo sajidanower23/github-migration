@@ -33,11 +33,11 @@ import           Data.Aeson
 import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Char8 as BS8
 import           Data.Foldable
+import           Data.List             (sortOn)
 import           Data.Proxy            (Proxy (..))
 import           Data.String           (IsString (..))
 import           Data.Text             (Text, isInfixOf, split, unpack)
 import qualified Data.Text             as T
-import           Data.List             (sortOn)
 
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -197,18 +197,18 @@ liftG :: IO (Either Error a) -> App a
 liftG = lift . ExceptT
 
 -- Run a request on the 'from' server
-source :: Request x a -> App a
+source :: FromJSON a => Request x a -> App a
 source r = handleAbuseErrors $ do
   Config{..} <- ask
   liftIO (print r)
   liftG (executeRequest _sourceAuth r)
 
-sourceRepo :: (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
+sourceRepo :: FromJSON b => (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
 sourceRepo f g = do
   f' <- uncurry f <$> asks _sourceRepo
   source (g f')
 
-destWithAuth :: UserName -> Request x a -> App a
+destWithAuth :: ParseResponse t a => UserName -> GenRequest t x a -> App a
 destWithAuth sourceName r = handleAbuseErrors $ do
   authMap <- asks _userAuthMap
   liftIO (print r)
@@ -224,20 +224,20 @@ destWithAuth sourceName r = handleAbuseErrors $ do
         liftIO . print $ "Using default auth"
         dest r
 
-destRepoWithAuth :: UserName -> (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
+destRepoWithAuth :: ParseResponse t b => UserName -> (Name Owner -> Name Repo -> a) -> (a -> GenRequest t x b) -> App b
 destRepoWithAuth username f g = do
   f' <- uncurry f <$> asks _destRepo
   destWithAuth username (g f')
 
 
 -- Run a request on the 'to' server
-dest :: Request x a -> App a
+dest :: ParseResponse t a => GenRequest t x a -> App a
 dest r = handleAbuseErrors $ do
   Config{..} <- ask
   liftIO (print r)
   liftG (executeRequest _destAuth r)
 
-destRepo :: (Name Owner -> Name Repo -> a) -> (a -> Request x b) -> App b
+destRepo ::  ParseResponse t b => (Name Owner -> Name Repo -> a) -> (a -> GenRequest t x b) -> App b
 destRepo f g = do
   f' <- uncurry f <$> asks _destRepo
   dest (g f')
@@ -296,7 +296,7 @@ inviteDestUsers = do
   nameMap <- asks _userInfoMap
   N owner <- asks (fst . _destRepo)
   traverse_
-    (\(srcUser, destUser) -> do
+    (\(srcUser, destUser) ->
       when (owner /= destUser) $ do
         inv <- destRepo addCollaboratorR ($ (N destUser))
         destWithAuth srcUser (acceptInvitationFromR $ repoInvitationId inv)
@@ -340,16 +340,16 @@ maybeCloseIssue :: Issue -> App ()
 maybeCloseIssue iss =
   for_ (issueClosedAt iss) $ \_ -> do
     let (N authorName) = simpleUserLogin . issueUser $ iss
-        iid = Id $ issueNumber iss
+        iid = Id $ unIssueNumber $ issueNumber iss
     destRepoWithAuth authorName editIssueR $ \f -> f iid editOfIssue{ editIssueState = Just StateClosed }
 
 transferIssueComments :: Issue -> App ()
 transferIssueComments iss = do
-  let iid = Id $ issueNumber iss
+  let iid = issueNumber iss
   cmnts <- sourceRepo commentsR $ \f -> f iid FetchAll
   traverse_ (transferSingleComment iid) cmnts
   where
-    transferSingleComment :: Id Issue -> IssueComment -> App Comment
+    transferSingleComment :: IssueNumber -> IssueComment -> App Comment
     transferSingleComment iid cmnt =
       let (N authorName) = simpleUserLogin . issueCommentUser $ cmnt
           oldCmntBody = issueCommentBody cmnt
