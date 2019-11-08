@@ -17,7 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: lts-12.14
+resolver: lts-13.18
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -39,7 +39,7 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - git: https://github.com/sajidanower23/github
-  commit: 3a2db1b
+  commit: c93aa1f42599d88af5896ebf6e12a4d0b4d46674
 - aeson-1.4.1.0
 
 # Override default flag values for local packages and extra-deps
